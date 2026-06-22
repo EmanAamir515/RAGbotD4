@@ -47,7 +47,10 @@ async def add_msg_stream(data:mem):
             "content": (
                 "You are NetSol's support assistant. Use the following FAQ "
                 "entries to answer the user's question if they are relevant. "
-                "If the FAQs don't cover it, answer normally.\n\n"
+                "If the FAQs don't cover it, answer normally."
+                "Do not use markdown tables."
+                "Use bullet points instead."
+                "write each bullet point in new line.\n\n"
                 f"{context_text}"
             )
         }

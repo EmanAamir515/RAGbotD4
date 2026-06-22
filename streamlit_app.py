@@ -1,4 +1,3 @@
-
 import streamlit as st
 import requests
 import uuid
@@ -22,7 +21,7 @@ st.markdown("""
 .bubble {
     padding: 10px 16px;
     border-radius: 16px;
-    max-width: 70%;
+    max-width: 85%;
     word-wrap: break-word;
 }
 .bubble.user {
@@ -35,14 +34,29 @@ st.markdown("""
     color: #111;
     border-bottom-left-radius: 4px;
 }
+.bubble table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 8px 0;
+    font-size: 0.9em;
+}
+.bubble th, .bubble td {
+    border: 1px solid #ccc;
+    padding: 6px 10px;
+    text-align: left;
+}
+.bubble th {
+    background-color: rgba(0,0,0,0.08);
+}
 </style>
 """, unsafe_allow_html=True)
 
 def render_bubble(role, content):
-   # html = markdown.markdown(content)## converts **bold** into real html code and give output 
+   ## html = markdown.markdown(content , extensions=["tables", "fenced_code", "nl2br"])## converts **bold** into real html code and give output 
+    html = markdown.markdown(content)
     return f"""
     <div class="chat-row {role}">
-        <div class="bubble {role}">{content}</div>
+        <div class="bubble {role}">{html}</div>
     </div>
     """
     
