@@ -52,8 +52,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 def render_bubble(role, content):
-   ## html = markdown.markdown(content , extensions=["tables", "fenced_code", "nl2br"])## converts **bold** into real html code and give output 
-    html = markdown.markdown(content)
+    html = markdown.markdown(content , extensions=["tables", "fenced_code", "nl2br"])## converts **bold** into real html code and give output 
+   # html = markdown.markdown(content)
     return f"""
     <div class="chat-row {role}">
         <div class="bubble {role}">{html}</div>
@@ -82,7 +82,7 @@ def confirm_delete(cid):
             fetch_all_chats.clear()
             st.rerun()
 
-@st.cache_data(ttl=40)  # refetch at most every 10s
+@st.cache_data(ttl=60, show_spinner=False)  # refetch at most every 10s
 def fetch_all_chats():
     try:
         response = st.session_state.http.get("http://localhost:8000/allChats")

@@ -1,23 +1,19 @@
 from fastapi import FastAPI ##endpoint file like tmrw 
-from free_model import  ask_model_stream
-from structure import mem
-from DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
+from models.free_model import ask_model_tooling
+from data.structure import mem
+from services.DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
-from embed import build_faq_embeddings, retrieve_relevant_faqs
-from concurrent.futures import ThreadPoolExecutor 
+from services.embed import build_faq_embeddings, retrieve_relevant_faqs
 
-executer = ThreadPoolExecutor()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs once when the FastAPI server starts up
-    # Loads cached FAQ embeddings from disk, or builds + caches them
-    # the first time (see embed.py).
+    # Runs once when the FastAPI server starts up # Loads cached FAQ embeddings from disk, or builds + caches them# the first time (see embed.py).
     build_faq_embeddings()
     yield
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/get/{cid}")
 async def get_hist(cid:str):
@@ -26,22 +22,14 @@ async def get_hist(cid:str):
 @app.post("/post_stream")
 async def add_msg_stream(data:mem):
     ## store user msg with role/id after it got reply 
-    #store_msg(data.Cid, 'user', data.content)
-    
-    ## saving user msg in DB and running vector search parallely 
-    save_future = executer.submit(store_msg, data.Cid , 'user',data.content)
-    faq_future = executer.submit(retrieve_relevant_faqs,data.content)
+    store_msg(data.Cid, 'user', data.content)
     
     history = get_convoHistory(data.Cid) ##history of chat for context 
     
-    #relevant_faqs = retrieve_relevant_faqs(data.content)
-    relevant_faqs = faq_future.result()
-    save_future.result()##stops untol both tasks threads are finished 
-    
-    if relevant_faqs:## if found combines LLM + history chat (context) to answer
-        context_text = "\n\n".join(
-            f"Q: {f['question']}\nA: {f['answer']}" for f in relevant_faqs
-        )
+    relevant_faqs = retrieve_relevant_faqs(data.content)
+    if relevant_faqs:
+   ## if found combines LLM + history chat (context) to answer
+        context_text = "\n\n".join( f"Q: {f['question']}\nA: {f['answer']}" for f in relevant_faqs)
         system_msg = {
             "role": "system",
             "content": (
@@ -58,8 +46,9 @@ async def add_msg_stream(data:mem):
 
     def event_generator():
         full_response = ""
+        #print(full_response)
 
-        for chunk in ask_model_stream(history):## gets all chunks in SSE format
+        for chunk in ask_model_tooling(history):## gets all chunks in SSE format
             full_response += chunk
             yield f"data: {chunk}\n\n"
         
@@ -76,18 +65,6 @@ def delete(cid:str):
 async def list_allChats():
     return get_allconvos()
 
-# @app.post("/post")
-# def add_msg(data:mem):
-#     ## store user msg with role/id after it got reply 
-#     store_msg(data.Cid, 'user', data.content)
-    
-#     history = get_convoHistory(data.Cid)
-    
-#     response = ask_model(history)
-    
-#     store_msg(data.Cid, 'assistant', response)
-
-#     return { "response: " : response}
 
 
 
