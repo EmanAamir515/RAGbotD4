@@ -1,8 +1,10 @@
 
 from pymongo import MongoClient
-#from bson.objectid import ObjectId
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
-client = MongoClient("mongodb://localhost:27017")##making connection
+client = MongoClient(os.getenv("MONGO_LINK"))##making connection
 db = client["echatbot"]
 msgs_collection = db["messages"]##like SQl table
 msgs_collection.create_index("Cid")

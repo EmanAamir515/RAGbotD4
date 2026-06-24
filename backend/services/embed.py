@@ -3,7 +3,8 @@ import pandas as pd
 from langchain_openai import OpenAIEmbeddings
 import os
 from dotenv import load_dotenv
-
+RAG_TOP_K = 3
+load_dotenv()
 embeddings = OpenAIEmbeddings(
     model="nvidia/llama-nemotron-embed-vl-1b-v2:free",  
     base_url="https://openrouter.ai/api/v1",
@@ -17,7 +18,7 @@ chroma_client = chromadb.PersistentClient(path= "./chroma_db")
 collection = chroma_client.get_or_create_collection(name= "netsol_faqs" )
 
 
-def retrieve_relevant_faqs(q, top_k= os.getenv("RAG_TOP_K")):
+def retrieve_relevant_faqs(q, top_k= RAG_TOP_K):
     if collection.count() == 0:
         return []
     

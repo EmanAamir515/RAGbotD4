@@ -26,23 +26,23 @@ async def add_msg_stream(data:mem):
     
     history = get_convoHistory(data.Cid) ##history of chat for context 
     
-    relevant_faqs = retrieve_relevant_faqs(data.content)
-    if relevant_faqs:
-   ## if found combines LLM + history chat (context) to answer
-        context_text = "\n\n".join( f"Q: {f['question']}\nA: {f['answer']}" for f in relevant_faqs)
-        system_msg = {
-            "role": "system",
-            "content": (
-                "You are NetSol's support assistant. Use the following FAQ "
-                "entries to answer the user's question if they are relevant. "
-                "If the FAQs don't cover it, answer normally."
-                "Do not use markdown tables."
-                "Use bullet points instead."
-                "write each bullet point in new line.\n\n"
-                f"{context_text}"
-            )
-        }
-        history = [system_msg] + history
+#     relevant_faqs = retrieve_relevant_faqs(data.content)
+#     if relevant_faqs:
+#    ## if found combines LLM + history chat (context) to answer
+#         context_text = "\n\n".join( f"Q: {f['question']}\nA: {f['answer']}" for f in relevant_faqs)
+#         system_msg = {
+#             "role": "system",
+#             "content": (
+#                 "You are NetSol's support assistant. Use the following FAQ "
+#                 "entries to answer the user's question if they are relevant. "
+#                 "If the FAQs don't cover it, answer normally."
+#                 "Do not use markdown tables."
+#                 "Use bullet points instead."
+#                 "write each bullet point in new line.\n\n"
+#                 f"{context_text}"
+#             )
+#         }
+#         history = [system_msg] + history
 
     def event_generator():
         full_response = ""
