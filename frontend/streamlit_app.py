@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import uuid
 import markdown
+from chat_input import render_chat_input
 
 st.set_page_config(page_title="eChatBot", page_icon="🤖", layout ="wide")
 st.title("eChatBot")
@@ -138,52 +139,10 @@ with st.sidebar:
         
 
 for msg in st.session_state.messages:## prints msgs from oldest to newest
+    if msg["role"] == "system":
+        continue  # file-content notes aren't meant to be shown as chat bubbles
     st.markdown(render_bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
 
-# Chat input
-if prompt := st.chat_input("Type your message !!!"):
-
-    st.session_state.messages.append({"role": "user", "content": prompt})## add new msg in state 
-    st.markdown(render_bubble("user", prompt), unsafe_allow_html=True)
-
-    message_placeholder = st.empty()
-    
-    full_response = ""
-        
-    try:
-            # Use streaming endpoint
-            response = st.session_state.http.post(
-                "http://localhost:8000/post_stream",
-                json={
-                    "Cid": st.session_state.conversation_id,
-                    "role": "user",
-                    "content": prompt
-                },
-                stream=True ##lets us read as server sends it 
-            )
-            
-            if response.status_code == 200:
-                counter = 0
-                for line in response.iter_lines(chunk_size=1):##send chunks of data SSE format
-                    if line:
-                        line = line.decode('utf-8')
-                        if line.startswith('data: '):
-                            data = line[6:]
-                            if data == '[DONE]':
-                                break
-                            full_response += data
-                            counter += 1
-                            
-                            if counter % 3 ==0:
-                                message_placeholder.markdown(render_bubble("assistant", full_response + "▌"), unsafe_allow_html=True)                
-                message_placeholder.markdown(render_bubble("assistant",full_response),unsafe_allow_html=True)
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-            else:
-                st.error(f"Error: {response.status_code}")
-                
-    except requests.exceptions.ConnectionError:
-        st.error(" Cannot connect to server. Make sure FastAPI is running!")
-    except Exception as e:
-        st.error(f" Error: {str(e)}")
-
+# Chat input + file upload (logic lives in chat_input.py)
+render_chat_input(render_bubble)

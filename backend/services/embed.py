@@ -42,7 +42,7 @@ def retrieve_relevant_faqs(q, top_k= RAG_TOP_K):
         
     
     
-def load_faqs(csv_path= "../data/netsol_faqs.csv"):###reading .csv and chunking that data
+def load_faqs(csv_path= "data/netsol_faqs.csv"):###reading .csv and chunking that data
     df = pd.read_csv(csv_path)
     
     faqs = []

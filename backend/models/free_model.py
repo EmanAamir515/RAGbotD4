@@ -1,4 +1,3 @@
-
 import os
 from dotenv import load_dotenv
 from langchain_openrouter import ChatOpenRouter
@@ -20,11 +19,16 @@ def search_FAQs(q: str)-> str:
 agent = create_agent(
     model=myModel,
     tools=[search_FAQs],
-    system_prompt="You are a helpful assistant who if asked to answer netsol related questions Use search_FAQs"
+    system_prompt=(
+        "You are a helpful assistant who if asked to answer netsol related "
+        "questions Use search_FAQs. If a system message contains 'Relevant "
+        "excerpts from the user's uploaded document(s)', use that content to "
+        "answer the user's question about their uploaded file."
+    )
 )
 
 
-def ask_model_tooling(messages):
+def ask_model_tooling(messages, cid=None):
     try:
         tool_called = False
         for token, metadata in agent.stream(
@@ -42,7 +46,3 @@ def ask_model_tooling(messages):
         
     except Exception as e:
         print("Error occured in free_model => ask_model_tooling",e )
-        
-        
-        
-

@@ -1,10 +1,10 @@
-from fastapi import FastAPI ##endpoint file like tmrw 
+from fastapi import FastAPI, UploadFile, File, Form ##endpoint file like tmrw 
 from models.free_model import ask_model_tooling
-from data.structure import mem
 from services.DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from services.embed import build_faq_embeddings, retrieve_relevant_faqs
+from services.upload_service import store_upload, retrieve_relevant_uploads
 
 
 @asynccontextmanager
@@ -20,13 +20,16 @@ async def get_hist(cid:str):
     return get_convoHistory(cid)
 
 @app.post("/post_stream")
-async def add_msg_stream(data:mem):
-    ## store user msg with role/id after it got reply 
-    store_msg(data.Cid, 'user', data.content)
+async def add_msg_stream(Cid: str = Form(...), content: str = Form(...), file: UploadFile = File(None)):
+    file_bytes = await file.read() if file else None
+
+    ## store user msg with role/id - prepend a small attachment badge if a file was sent
+    stored_content = f"📎 *{file.filename}*\n\n{content}" if file else content
+    store_msg(Cid, 'user', stored_content)
+
+    history = get_convoHistory(Cid) ##history of chat for context 
     
-    history = get_convoHistory(data.Cid) ##history of chat for context 
-    
-#     relevant_faqs = retrieve_relevant_faqs(data.content)
+#     relevant_faqs = retrieve_relevant_faqs(content)
 #     if relevant_faqs:
 #    ## if found combines LLM + history chat (context) to answer
 #         context_text = "\n\n".join( f"Q: {f['question']}\nA: {f['answer']}" for f in relevant_faqs)
@@ -45,14 +48,35 @@ async def add_msg_stream(data:mem):
 #         history = [system_msg] + history
 
     def event_generator():
+        # if a file came with this message, chunk + embed it into ChromaDB
+        # (scoped to this Cid) so it can be retrieved below
+        nonlocal history
+        if file_bytes:
+            yield f"event: status\ndata: Reading {file.filename}...\n\n"
+            chunk_count = store_upload(Cid, file.filename, file_bytes)
+            yield f"event: status\ndata: Added {chunk_count} chunks from {file.filename}\n\n"
+
+        # forced retrieval: always query ChromaDB for this Cid's uploaded
+        # docs using the user's message, and inject the top matching chunks
+        # as a system message. This doesn't depend on the LLM deciding to
+        # call a tool, so it works reliably even with free-tier models.
+        relevant_chunks = retrieve_relevant_uploads(Cid, content)
+        if relevant_chunks:
+            context_text = "\n\n---\n\n".join(relevant_chunks)
+            retrieval_msg = {
+                "role": "system",
+                "content": f"Relevant excerpts from the user's uploaded document(s):\n\n{context_text}"
+            }
+            history = history + [retrieval_msg]
+
         full_response = ""
         #print(full_response)
 
-        for chunk in ask_model_tooling(history):## gets all chunks in SSE format
+        for chunk in ask_model_tooling(history, Cid):## gets all chunks in SSE format
             full_response += chunk
             yield f"data: {chunk}\n\n"
         
-        store_msg(data.Cid, 'assistant', full_response)##saving full response at end
+        store_msg(Cid, 'assistant', full_response)##saving full response at end
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -64,7 +88,3 @@ def delete(cid:str):
 @app.get("/allChats")
 async def list_allChats():
     return get_allconvos()
-
-
-
-
