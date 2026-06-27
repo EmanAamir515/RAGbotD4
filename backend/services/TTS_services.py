@@ -6,7 +6,7 @@ from kokoro import KPipeline
 
 pipeline = KPipeline(lang_code="a")  # load once
 
-def speak(text, voice="af_heart"):
+def audio(text, voice="af_heart"):
     """Convert one sentence of text into WAV audio bytes."""
     audio_parts = [audio for _, _, audio in pipeline(text, voice=voice)]
     combined = np.concatenate(audio_parts)

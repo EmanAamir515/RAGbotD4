@@ -186,11 +186,6 @@ elif audio_value:
         else:
             st.error("Transcription failed")
 
-
-# typed_prompt = st.chat_input("Type your message !!!")
-# if typed_prompt:
-#     prompt = typed_prompt 
-# Chat input
 if prompt:
 
     st.session_state.messages.append({"role": "user", "content": prompt})## add new msg in state 
@@ -227,10 +222,18 @@ if prompt:
                             if counter % 3 ==0:
                                 message_placeholder.markdown(render_bubble("assistant", full_response + "▌"), unsafe_allow_html=True)                
                 message_placeholder.markdown(render_bubble("assistant",full_response),unsafe_allow_html=True)
+                
                 st.session_state.messages.append({"role": "assistant", "content": full_response})
+                
+                tts_response = st.session_state.http.post(
+                    "http://localhost:8000/tts",
+                    json={"text": full_response}
+                )
+                if tts_response.status_code == 200:
+                    st.audio(tts_response.content, format="audio/wav", autoplay=True)  
             else:
                 st.error(f"Error: {response.status_code}")
-                
+              
     except requests.exceptions.ConnectionError:
         st.error(" Cannot connect to server. Make sure FastAPI is running!")
     except Exception as e:

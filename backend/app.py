@@ -1,12 +1,12 @@
-from fastapi import FastAPI, UploadFile, File##endpoint file like tmrw 
+from fastapi import FastAPI, UploadFile, File
 from models.free_model import ask_model_tooling
 from data.structure import mem
 from services.DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse,Response
 from contextlib import asynccontextmanager
 from services.embed import build_faq_embeddings, retrieve_relevant_faqs
 from services.STTvoice_services import STT_function
-
+from services.TTS_services import audio
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -72,6 +72,9 @@ async def get_audio(audio: UploadFile = File(...)):
     text = STT_function(aBytes)
     return {"text": text}
 
-
+@app.post("/tts")
+async def text_to_Speech(data: dict):
+    audio_bytes = audio(data["text"])
+    return Response(content=audio_bytes, media_type="audio/wav")
 
 
