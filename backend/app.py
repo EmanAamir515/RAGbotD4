@@ -1,10 +1,11 @@
-from fastapi import FastAPI ##endpoint file like tmrw 
+from fastapi import FastAPI, UploadFile, File##endpoint file like tmrw 
 from models.free_model import ask_model_tooling
 from data.structure import mem
 from services.DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from services.embed import build_faq_embeddings, retrieve_relevant_faqs
+from services.STTvoice_services import STT_function
 
 
 @asynccontextmanager
@@ -64,6 +65,12 @@ def delete(cid:str):
 @app.get("/allChats")
 async def list_allChats():
     return get_allconvos()
+
+@app.post("/STT")
+async def get_audio(audio: UploadFile = File(...)):
+    aBytes = await audio.read()
+    text = STT_function(aBytes)
+    return {"text": text}
 
 
 

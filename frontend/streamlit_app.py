@@ -48,6 +48,24 @@ st.markdown("""
 .bubble th {
     background-color: rgba(0,0,0,0.08);
 }
+.block-container {
+    padding-top: 2rem;
+}
+.main .block-container {
+    padding-bottom: 120px;
+}
+
+div[data-testid="stAudioInput"] {
+    position: fixed;
+    bottom: 90px;
+    right: 140px;
+    width: 40px !important;
+    height: 25px !important;
+    z-index: 1000;
+    background: transparent
+}
+
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -63,7 +81,7 @@ def render_bubble(role, content):
 if "messages" not in st.session_state:##persists rerun fro given browser session
     st.session_state.messages = []
 if "conversation_id" not in st.session_state:
-    st.session_state.conversation_id = "conv_001"
+    st.session_state.conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
 if "http" not in st.session_state:
     st.session_state.http = requests.Session()
     
@@ -140,9 +158,40 @@ with st.sidebar:
 for msg in st.session_state.messages:## prints msgs from oldest to newest
     st.markdown(render_bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
+# with st.container(key="input_row"):
+#     col1, col2 = st.columns([5, 1])
+#     with col1:
+#         typed_prompt = st.chat_input("Type your message !!!")
+#     with col2:
+#         audio_value = st.audio_input("🎤", label_visibility="collapsed",key="mic_input")
 
+
+typed_prompt = st.chat_input("Type your message !!!")
+audio_value = st.audio_input("🎤", label_visibility="collapsed",key="mic_input")
+
+prompt = None  # always initialize before the if-chain that uses it
+
+if typed_prompt:
+    prompt = typed_prompt
+elif audio_value:
+    # guard against re-transcribing the same blob on unrelated reruns
+    if audio_value.file_id != st.session_state.get("last_audio_id"):
+        st.session_state.last_audio_id = audio_value.file_id
+        files = {"audio": ("recording.wav", audio_value.getvalue(), "audio/wav")}
+        transcribe_response = st.session_state.http.post(
+            "http://localhost:8000/STT", files=files
+        )
+        if transcribe_response.status_code == 200:
+            prompt = transcribe_response.json()["text"]
+        else:
+            st.error("Transcription failed")
+
+
+# typed_prompt = st.chat_input("Type your message !!!")
+# if typed_prompt:
+#     prompt = typed_prompt 
 # Chat input
-if prompt := st.chat_input("Type your message !!!"):
+if prompt:
 
     st.session_state.messages.append({"role": "user", "content": prompt})## add new msg in state 
     st.markdown(render_bubble("user", prompt), unsafe_allow_html=True)

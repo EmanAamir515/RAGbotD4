@@ -1,15 +1,15 @@
 
 import os
 from dotenv import load_dotenv
-from langchain_openrouter import ChatOpenRouter
+from langchain_groq import ChatGroq
 from services.embed import retrieve_relevant_faqs
 from langchain_core.tools import tool
 from langchain.agents import create_agent
 load_dotenv()
 RAG_TOP_K = 3
-myModel = ChatOpenRouter(
-    model="openai/gpt-oss-120b:free", ##"google/gemma-4-31b-it:free"
-    api_key=os.getenv("OPENROUTER_API_KEY"),
+myModel = ChatGroq(
+    model="openai/gpt-oss-20b",##"llama-3.1-8b-instant",
+    api_key=os.getenv("GROQ_API_KEY"),
 )
 
 @tool
@@ -20,7 +20,7 @@ def search_FAQs(q: str)-> str:
 agent = create_agent(
     model=myModel,
     tools=[search_FAQs],
-    system_prompt="You are a helpful assistant who if asked to answer netsol related questions Use search_FAQs"
+    system_prompt="You are a helpful NetSol support assistant. Always use search_FAQs for any question that could be about NetSol, Netsoul, netsol, or any variation of it. Never say you are unfamiliar — always search first, then answer based on results. Keep responses in plain text."
 )
 
 
@@ -33,15 +33,23 @@ def ask_model_tooling(messages):
         ):
             if metadata.get("langgraph_node")=="tools":
                 tool_called = True
+                continue
             if token.content:
                 yield token.content
         print(token)
         print("Tool calling was used:",tool_called)
         ##print(token.response_metadata.get("finish_reason"))##??
 
-        
     except Exception as e:
-        print("Error occured in free_model => ask_model_tooling",e )
+        import traceback
+        traceback.print_exc()
+        print("Exception args:", e.args)
+        if hasattr(e, "response") and e.response is not None:
+            print("Status code:", e.response.status_code)
+            print("Body:", e.response.text)
+        
+   # except Exception as e:
+    #    print("Error occured in free_model => ask_model_tooling",e )
         
         
         
