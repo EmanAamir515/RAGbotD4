@@ -45,6 +45,9 @@ jobs:
             --allow-unauthenticated \
             --memory 2Gi \
             --timeout 300 \
+            --execution-environment gen2 \
+            --add-volume name=chroma-vol,type=cloud-storage,bucket=ragbot-chromadb-pivotal-mile \
+            --add-volume-mount volume=chroma-vol,mount-path=/app/backend/chroma_db \
             --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_LINK=${{ secrets.MONGO_LINK }}
 
   deploy-frontend:

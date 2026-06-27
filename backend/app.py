@@ -4,7 +4,7 @@ from services.DBservices import store_msg, get_convoHistory,get_allconvos, delet
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from services.embed import build_faq_embeddings, retrieve_relevant_faqs
-from services.upload_service import store_upload, retrieve_relevant_uploads
+from services.upload_service import store_upload, retrieve_relevant_uploads, extract_text
 
 
 @asynccontextmanager
@@ -48,26 +48,34 @@ async def add_msg_stream(Cid: str = Form(...), content: str = Form(...), file: U
 #         history = [system_msg] + history
 
     def event_generator():
-        # if a file came with this message, chunk + embed it into ChromaDB
-        # (scoped to this Cid) so it can be retrieved below
+        # if a file came with this message: extract its text directly (no
+        # extra embedding call needed for THIS turn - we already know it's
+        # relevant since the user just attached it). Still store it in
+        # ChromaDB in the background so future turns can retrieve it.
         nonlocal history
         if file_bytes:
             yield f"event: status\ndata: Reading {file.filename}...\n\n"
+
+            file_text = extract_text(file.filename, file_bytes)
+            if file_text:
+                history = history + [{
+                    "role": "system",
+                    "content": f"The user just uploaded '{file.filename}'. Its content:\n\n{file_text[:6000]}"
+                }]
+
             chunk_count = store_upload(Cid, file.filename, file_bytes)
             yield f"event: status\ndata: Added {chunk_count} chunks from {file.filename}\n\n"
-
-        # forced retrieval: always query ChromaDB for this Cid's uploaded
-        # docs using the user's message, and inject the top matching chunks
-        # as a system message. This doesn't depend on the LLM deciding to
-        # call a tool, so it works reliably even with free-tier models.
-        relevant_chunks = retrieve_relevant_uploads(Cid, content)
-        if relevant_chunks:
-            context_text = "\n\n---\n\n".join(relevant_chunks)
-            retrieval_msg = {
-                "role": "system",
-                "content": f"Relevant excerpts from the user's uploaded document(s):\n\n{context_text}"
-            }
-            history = history + [retrieval_msg]
+        else:
+            # no new file this turn - check if there's a relevant chunk from
+            # a PREVIOUSLY uploaded file in this conversation. Only inject
+            # it if it's genuinely close in meaning to this message.
+            relevant_chunks = retrieve_relevant_uploads(Cid, content)
+            if relevant_chunks:
+                context_text = "\n\n---\n\n".join(relevant_chunks)
+                history = history + [{
+                    "role": "system",
+                    "content": f"Relevant excerpts from the user's previously uploaded document(s):\n\n{context_text}"
+                }]
 
         full_response = ""
         #print(full_response)

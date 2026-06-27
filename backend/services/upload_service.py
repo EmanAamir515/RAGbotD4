@@ -25,37 +25,47 @@ upload_collection = chroma_client.get_or_create_collection(name="user_uploads")
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
 
 
+def _from_pdf(content):
+    doc = fitz.open(stream=content, filetype="pdf")
+    return "\n".join(page.get_text() for page in doc)
+
+def _from_docx(content):
+    d = docx.Document(io.BytesIO(content))
+    return "\n".join(p.text for p in d.paragraphs)
+
+def _from_csv(content):
+    df = pd.read_csv(io.BytesIO(content))
+    return df.to_string(index=False)
+
+def _from_txt(content):
+    return content.decode("utf-8", errors="ignore")
+
+def _from_pptx(content):
+    prs = Presentation(io.BytesIO(content))
+    lines = [
+        shape.text_frame.text
+        for slide in prs.slides
+        for shape in slide.shapes
+        if shape.has_text_frame
+    ]
+    return "\n".join(lines)
+
+
+EXTRACTORS = {
+    "pdf": _from_pdf,
+    "docx": _from_docx,
+    "csv": _from_csv,
+    "txt": _from_txt,
+    "pptx": _from_pptx,
+}
+
+
 def extract_text(filename, content):
     ext = filename.lower().split(".")[-1]
-
-    if ext == "pdf":
-        doc = fitz.open(stream=content, filetype="pdf")
-        text = "\n".join(page.get_text() for page in doc)
-
-    elif ext == "docx":
-        d = docx.Document(io.BytesIO(content))
-        text = "\n".join(p.text for p in d.paragraphs)
-
-    elif ext == "csv":
-        df = pd.read_csv(io.BytesIO(content))
-        text = df.to_string(index=False)
-
-    elif ext == "txt":
-        text = content.decode("utf-8", errors="ignore")
-
-    elif ext == "pptx":
-        prs = Presentation(io.BytesIO(content))
-        slides_text = []
-        for slide in prs.slides:
-            for shape in slide.shapes:
-                if shape.has_text_frame:
-                    slides_text.append(shape.text_frame.text)
-        text = "\n".join(slides_text)
-
-    else:
+    extractor = EXTRACTORS.get(ext)
+    if not extractor:
         return None
-
-    return text.strip()
+    return extractor(content).strip()
 
 
 def store_upload(cid, filename, content):
@@ -77,7 +87,7 @@ def store_upload(cid, filename, content):
     return len(chunks)
 
 
-def retrieve_relevant_uploads(cid, q, top_k=3):
+def retrieve_relevant_uploads(cid, q, top_k=3, max_distance=0.8):
     if upload_collection.count() == 0:
         return []
 
@@ -86,6 +96,12 @@ def retrieve_relevant_uploads(cid, q, top_k=3):
         query_embeddings=[query_emb],
         n_results=top_k,
         where={"Cid": cid},
-        include=["documents"],
+        include=["documents", "distances"],
     )
-    return res["documents"][0]
+
+    docs = res["documents"][0]
+    distances = res["distances"][0]
+
+    # only keep chunks that are genuinely close in meaning to the query;
+    # discards results that ChromaDB returns just because top_k asked for them
+    return [doc for doc, dist in zip(docs, distances) if dist <= max_distance]
