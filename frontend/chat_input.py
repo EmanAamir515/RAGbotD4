@@ -1,5 +1,8 @@
 import streamlit as st
 import requests
+import os
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 
 def render_chat_input(render_bubble):
@@ -44,7 +47,7 @@ def render_chat_input(render_bubble):
     try:
         # Use streaming endpoint (now also handles an optional file upload)
         response = st.session_state.http.post(
-            "http://localhost:8000/post_stream",
+            f"{BACKEND_URL}/post_stream",
             data=form_data,
             files=upload_files,
             stream=True ##lets us read as server sends it

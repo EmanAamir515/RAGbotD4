@@ -1,0 +1,14 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
+
+COPY frontend/ ./frontend/
+
+WORKDIR /app/frontend
+
+EXPOSE 8080
+
+CMD ["sh", "-c", "uv run streamlit run streamlit_app.py --server.port=${PORT:-8080} --server.address=0.0.0.0"]

@@ -1,0 +1,20 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# system deps needed by some python packages (e.g. pymupdf, chromadb)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
+
+COPY backend/ ./backend/
+
+WORKDIR /app/backend
+
+EXPOSE 8080
+
+# Cloud Run sets the PORT env var; default to 8080 for local docker run
+CMD ["sh", "-c", "uv run uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]

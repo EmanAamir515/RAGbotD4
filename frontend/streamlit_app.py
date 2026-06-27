@@ -2,7 +2,10 @@ import streamlit as st
 import requests
 import uuid
 import markdown
+import os
 from chat_input import render_chat_input
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="eChatBot", page_icon="🤖", layout ="wide")
 st.title("eChatBot")
@@ -78,7 +81,7 @@ def confirm_delete(cid):
             st.rerun()
     with col2:
         if st.button("Yes, delete it", type="primary"):
-            st.session_state.http.delete(f"http://localhost:8000/delete/{cid}")## calls delete API
+            st.session_state.http.delete(f"{BACKEND_URL}/delete/{cid}")## calls delete API
             st.session_state.messages = []
             fetch_all_chats.clear()
             st.rerun()
@@ -86,7 +89,7 @@ def confirm_delete(cid):
 @st.cache_data(ttl=60, show_spinner=False)  # refetch at most every 10s
 def fetch_all_chats():
     try:
-        response = st.session_state.http.get("http://localhost:8000/allChats")
+        response = st.session_state.http.get(f"{BACKEND_URL}/allChats")
         return response.json() if response.status_code == 200 else []
     except requests.exceptions.ConnectionError:
         return []
@@ -110,7 +113,7 @@ with st.sidebar:
     # all_cids = []
     
     # try:
-    #     response = requests.get(f"http://localhost:8000/allChats")
+    #     response = requests.get(f"{BACKEND_URL}/allChats")
     #     all_cids = response.json() if response.status_code == 200 else []
     # except requests.exceptions.ConnectionError:
     #     st.error("Cannot reach server")
@@ -127,7 +130,7 @@ with st.sidebar:
             ):
                 st.session_state.conversation_id = c
                 try:
-                    h = st.session_state.http.get(f"http://localhost:8000/get/{c}")
+                    h = st.session_state.http.get(f"{BACKEND_URL}/get/{c}")
                     st.session_state.messages = h.json() if h.status_code == 200 else []
                 except requests.exceptions.ConnectionError:
                     st.session_state.messages = []
