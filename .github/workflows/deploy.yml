@@ -43,6 +43,8 @@ jobs:
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
+            --memory 2Gi \
+            --timeout 300 \
             --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_LINK=${{ secrets.MONGO_LINK }}
 
   deploy-frontend:
@@ -80,4 +82,5 @@ jobs:
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
+            --memory 1Gi \
             --set-env-vars BACKEND_URL=${{ steps.backend_url.outputs.url }}
