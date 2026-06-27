@@ -1,2 +1,47 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# --- Virtual environments ---
+.venv/
+venv/
+env/
+
+# --- Environment variables / secrets ---
 .env
-.venv
+.env.*
+!.env.example
+*.json
+!package*.json
+gha-creds-*.json
+
+# --- ChromaDB local data (never commit - it's restored from GCS or built fresh) ---
+backend/chroma_db/
+chroma_db/
+
+# --- uv ---
+# (uv.lock SHOULD be committed for reproducible installs - not ignored)
+
+# --- IDE / editor ---
+.vscode/
+.idea/
+*.swp
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+
+# --- Build artifacts ---
+*.zip
+dist/
+build/
+*.egg-info/
+
+# --- Streamlit ---
+.streamlit/secrets.toml

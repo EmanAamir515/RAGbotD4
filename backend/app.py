@@ -1,16 +1,22 @@
+from services.gcs_sync import restore_from_gcs
+restore_from_gcs()  # restores FAQ ChromaDB data; must run before embed.py creates its client
+
+import threading
 from fastapi import FastAPI, UploadFile, File, Form ##endpoint file like tmrw 
 from models.free_model import ask_model_tooling
 from services.DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
 from fastapi.responses import StreamingResponse
 from contextlib import asynccontextmanager
 from services.embed import build_faq_embeddings, retrieve_relevant_faqs
-from services.upload_service import store_upload, retrieve_relevant_uploads, extract_text
+from services.upload_service import extract_text
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs once when the FastAPI server starts up # Loads cached FAQ embeddings from disk, or builds + caches them# the first time (see embed.py).
-    build_faq_embeddings()
+    # Builds FAQ embeddings in a background thread so the server starts
+    # accepting requests immediately, instead of blocking startup for
+    # however long the (free-tier, often slow) embedding API call takes.
+    threading.Thread(target=build_faq_embeddings, daemon=True).start()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -48,34 +54,23 @@ async def add_msg_stream(Cid: str = Form(...), content: str = Form(...), file: U
 #         history = [system_msg] + history
 
     def event_generator():
-        # if a file came with this message: extract its text directly (no
-        # extra embedding call needed for THIS turn - we already know it's
-        # relevant since the user just attached it). Still store it in
-        # ChromaDB in the background so future turns can retrieve it.
+        # If a file came with this message: extract its text and keep it
+        # in-memory for this conversation (like Claude's own file handling -
+        # no disk/vector DB persistence, just held in context up to a
+        # character limit). Saved as a "system" message in MongoDB so it's
+        # part of history for this and future turns in this conversation.
         nonlocal history
         if file_bytes:
             yield f"event: status\ndata: Reading {file.filename}...\n\n"
 
             file_text = extract_text(file.filename, file_bytes)
             if file_text:
-                history = history + [{
-                    "role": "system",
-                    "content": f"The user just uploaded '{file.filename}'. Its content:\n\n{file_text[:6000]}"
-                }]
-
-            chunk_count = store_upload(Cid, file.filename, file_bytes)
-            yield f"event: status\ndata: Added {chunk_count} chunks from {file.filename}\n\n"
-        else:
-            # no new file this turn - check if there's a relevant chunk from
-            # a PREVIOUSLY uploaded file in this conversation. Only inject
-            # it if it's genuinely close in meaning to this message.
-            relevant_chunks = retrieve_relevant_uploads(Cid, content)
-            if relevant_chunks:
-                context_text = "\n\n---\n\n".join(relevant_chunks)
-                history = history + [{
-                    "role": "system",
-                    "content": f"Relevant excerpts from the user's previously uploaded document(s):\n\n{context_text}"
-                }]
+                file_note = f"[Uploaded file: {file.filename}]\n\n{file_text}"
+                store_msg(Cid, 'system', file_note)
+                history = history + [{"role": "system", "content": file_note}]
+                yield f"event: status\ndata: Added {file.filename} to conversation context\n\n"
+            else:
+                yield f"event: status\ndata: Could not extract text from {file.filename}\n\n"
 
         full_response = ""
         #print(full_response)

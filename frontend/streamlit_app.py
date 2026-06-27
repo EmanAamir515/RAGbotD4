@@ -55,7 +55,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def _fix_squeezed_markdown(content):
+    """Safety net: if the model squeezes a markdown table or list onto a
+    single line (no real newlines between rows), insert them so the
+    Markdown table/list extensions can actually recognize the structure."""
+    if "|" in content and content.count("\n") < content.count("|") / 4:
+        # looks like a table crammed onto one line - break before each
+        # row delimiter pattern "| <number or word> |" that starts a new row
+        import re
+        content = re.sub(r'\s*\|\s*(?=\d+\s*\|)', '\n| ', content)
+        content = content.replace("||", "|\n|")
+    return content
+
+
 def render_bubble(role, content):
+    content = _fix_squeezed_markdown(content)
     html = markdown.markdown(content , extensions=["tables", "fenced_code", "nl2br"])## converts **bold** into real html code and give output 
    # html = markdown.markdown(content)
     return f"""
@@ -67,7 +81,7 @@ def render_bubble(role, content):
 if "messages" not in st.session_state:##persists rerun fro given browser session
     st.session_state.messages = []
 if "conversation_id" not in st.session_state:
-    st.session_state.conversation_id = "conv_001"
+    st.session_state.conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
 if "http" not in st.session_state:
     st.session_state.http = requests.Session()
     
@@ -89,35 +103,23 @@ def confirm_delete(cid):
 @st.cache_data(ttl=60, show_spinner=False)  # refetch at most every 10s
 def fetch_all_chats():
     try:
-        response = st.session_state.http.get(f"{BACKEND_URL}/allChats")
+        response = st.session_state.http.get(f"{BACKEND_URL}/allChats", timeout=5)
         return response.json() if response.status_code == 200 else []
-    except requests.exceptions.ConnectionError:
+    except Exception:
+        # backend unreachable, slow, or mid-restart - fail quietly so the
+        # rest of the page (including the chat input box) still renders
         return []
     
 # Sidebar
 with st.sidebar:
-    ##st.header("sideBar")
-    
     st.header("Conversations")
     if st.button(" New Chat", use_container_width=True):
         st.session_state.conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
-        display_name = st.session_state.messages[0]["content"][:20]+ "..." if st.session_state.messages else st.session_state.conversation_id
-        
         st.session_state.messages = []
         fetch_all_chats.clear()
-        ##st.rerun()
 
-  ##  st.divider() ##horizontal line 
     all_cids = fetch_all_chats()
-    
-    # all_cids = []
-    
-    # try:
-    #     response = requests.get(f"{BACKEND_URL}/allChats")
-    #     all_cids = response.json() if response.status_code == 200 else []
-    # except requests.exceptions.ConnectionError:
-    #     st.error("Cannot reach server")
-    
+
     for c in all_cids:
         col1, col2 = st.columns([4, 1])
         with col1:
@@ -130,9 +132,9 @@ with st.sidebar:
             ):
                 st.session_state.conversation_id = c
                 try:
-                    h = st.session_state.http.get(f"{BACKEND_URL}/get/{c}")
+                    h = st.session_state.http.get(f"{BACKEND_URL}/get/{c}", timeout=5)
                     st.session_state.messages = h.json() if h.status_code == 200 else []
-                except requests.exceptions.ConnectionError:
+                except Exception:
                     st.session_state.messages = []
                 st.rerun()
             
