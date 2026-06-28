@@ -18,9 +18,10 @@ env/
 !package*.json
 gha-creds-*.json
 
-# --- ChromaDB local data (never commit - it's restored from GCS or built fresh) ---
-backend/chroma_db/
+# --- ChromaDB local data (FAQ vector store - rebuilt automatically on
+# first startup if missing, never commit the binary index files) ---
 chroma_db/
+backend/chroma_db/
 
 # --- uv ---
 # (uv.lock SHOULD be committed for reproducible installs - not ignored)
@@ -45,3 +46,7 @@ build/
 
 # --- Streamlit ---
 .streamlit/secrets.toml
+
+# --- Temp files dropped by face registration (auth/routes.py cleans
+# these up itself, but ignore them as a safety net) ---
+temp_*

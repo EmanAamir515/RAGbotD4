@@ -1,11 +1,13 @@
 """
-GCS backup/restore for the local ChromaDB folder.
+GCS backup/restore for the local ChromaDB folder (FAQ embeddings only -
+uploaded files stay in-memory per conversation and are never persisted).
 
 Why this pattern (not GCS FUSE mount):
 ChromaDB's local mode uses SQLite, which does random-access writes.
 GCS FUSE only reliably supports sequential/append writes, so mounting
 a GCS bucket directly as the ChromaDB folder corrupts/breaks SQLite
-(confirmed via "BufferedWriteHandler.OutOfOrderError" in production).
+(confirmed via "BufferedWriteHandler.OutOfOrderError" in production
+on the earlier RAGbotD4 project).
 
 Instead, GCS is used the way it's actually designed to be used: as
 object storage. On startup, existing files are downloaded from GCS
@@ -21,7 +23,7 @@ from google.cloud import storage
 
 GCS_BUCKET = os.getenv("CHROMA_GCS_BUCKET")
 LOCAL_PATH = "./chroma_db"
-PREFIX = "chroma_db/"  
+PREFIX = "chroma_db/"  # folder prefix inside the bucket
 
 _bucket = None
 _last_synced_mtime = {}  # local file path -> mtime at last successful upload
@@ -93,7 +95,7 @@ def _sync_worker():
 
 
 def backup_to_gcs():
-    """Call after writes (e.g. after store_upload or build_faq_embeddings).
+    """Call after writes (e.g. after build_faq_embeddings).
     Runs in a background thread so it never blocks the response - and only
     uploads files that actually changed, so it stays fast even as the
     ChromaDB folder grows."""
