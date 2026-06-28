@@ -66,7 +66,7 @@ def render_chat_input(render_bubble):
             data=form_data,
             files=upload_files,
             stream=True,
-            timeout=(10, 60),
+            timeout=(10, 120),
         )
 
         if response.status_code != 200:
@@ -113,8 +113,11 @@ def render_chat_input(render_bubble):
         # speak the response back (best-effort - if TTS fails, the text
         # response above has already been shown, so just skip audio)
         try:
+            import re
+            sentences = re.split(r'(?<=[.!?])\s+', full_response.strip())
+            tts_text = " ".join(sentences[:3]) if len(sentences) > 3 else full_response
             tts_response = st.session_state.http.post(
-                f"{BACKEND_URL}/tts", json={"text": full_response}, timeout=30
+                f"{BACKEND_URL}/tts", json={"text": tts_text}, timeout=120
             )
             if tts_response.status_code == 200:
                 st.audio(tts_response.content, format="audio/wav", autoplay=True)
