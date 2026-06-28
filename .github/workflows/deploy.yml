@@ -47,13 +47,6 @@ jobs:
             --cpu-boost \
             --timeout 600 \
             --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_URI=${{ secrets.MONGO_URI }},MODEL=${{ secrets.MODEL }},EMBEDDING_MODEL=${{ secrets.EMBEDDING_MODEL }},EMBEDDINGS_URL=${{ secrets.EMBEDDINGS_URL }},DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }},CHROMA_GCS_BUCKET=ragbot-chromadb-pivotal-mile
-          # Cloud Run's startup probe defaults to a short timeout; explicitly
-          # widening it gives the heavy ML imports (langchain/langgraph) room
-          # to finish on a cold start instead of being killed before the
-          # app can bind to $PORT.
-          gcloud run services update netsol-chatbot-backend \
-            --region ${{ env.REGION }} \
-            --update-startup-probe=httpGet.port=8080,initialDelaySeconds=0,timeoutSeconds=240,periodSeconds=10,failureThreshold=30
 
   deploy-frontend:
     runs-on: ubuntu-latest
