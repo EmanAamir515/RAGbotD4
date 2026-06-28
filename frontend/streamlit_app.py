@@ -2,6 +2,10 @@ import streamlit as st
 import requests
 import uuid
 import markdown
+import os
+from chat_input import render_chat_input
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
 
 st.set_page_config(page_title="eChatBot", page_icon="🤖", layout ="wide")
 st.title("eChatBot")
@@ -54,7 +58,6 @@ st.markdown("""
 .main .block-container {
     padding-bottom: 120px;
 }
-
 div[data-testid="stAudioInput"] {
     position: fixed;
     bottom: 90px;
@@ -62,14 +65,26 @@ div[data-testid="stAudioInput"] {
     width: 40px !important;
     height: 25px !important;
     z-index: 1000;
-    background: transparent
+    background: transparent;
 }
-
-
 </style>
 """, unsafe_allow_html=True)
 
+def _fix_squeezed_markdown(content):
+    """Safety net: if the model squeezes a markdown table or list onto a
+    single line (no real newlines between rows), insert them so the
+    Markdown table/list extensions can actually recognize the structure."""
+    if "|" in content and content.count("\n") < content.count("|") / 4:
+        # looks like a table crammed onto one line - break before each
+        # row delimiter pattern "| <number or word> |" that starts a new row
+        import re
+        content = re.sub(r'\s*\|\s*(?=\d+\s*\|)', '\n| ', content)
+        content = content.replace("||", "|\n|")
+    return content
+
+
 def render_bubble(role, content):
+    content = _fix_squeezed_markdown(content)
     html = markdown.markdown(content , extensions=["tables", "fenced_code", "nl2br"])## converts **bold** into real html code and give output 
    # html = markdown.markdown(content)
     return f"""
@@ -95,7 +110,7 @@ def confirm_delete(cid):
             st.rerun()
     with col2:
         if st.button("Yes, delete it", type="primary"):
-            st.session_state.http.delete(f"http://localhost:8000/delete/{cid}")## calls delete API
+            st.session_state.http.delete(f"{BACKEND_URL}/delete/{cid}")## calls delete API
             st.session_state.messages = []
             fetch_all_chats.clear()
             st.rerun()
@@ -103,35 +118,23 @@ def confirm_delete(cid):
 @st.cache_data(ttl=60, show_spinner=False)  # refetch at most every 10s
 def fetch_all_chats():
     try:
-        response = st.session_state.http.get("http://localhost:8000/allChats")
+        response = st.session_state.http.get(f"{BACKEND_URL}/allChats", timeout=5)
         return response.json() if response.status_code == 200 else []
-    except requests.exceptions.ConnectionError:
+    except Exception:
+        # backend unreachable, slow, or mid-restart - fail quietly so the
+        # rest of the page (including the chat input box) still renders
         return []
     
 # Sidebar
 with st.sidebar:
-    ##st.header("sideBar")
-    
     st.header("Conversations")
     if st.button(" New Chat", use_container_width=True):
         st.session_state.conversation_id = f"conv_{uuid.uuid4().hex[:8]}"
-        display_name = st.session_state.messages[0]["content"][:20]+ "..." if st.session_state.messages else st.session_state.conversation_id
-        
         st.session_state.messages = []
         fetch_all_chats.clear()
-        ##st.rerun()
 
-  ##  st.divider() ##horizontal line 
     all_cids = fetch_all_chats()
-    
-    # all_cids = []
-    
-    # try:
-    #     response = requests.get(f"http://localhost:8000/allChats")
-    #     all_cids = response.json() if response.status_code == 200 else []
-    # except requests.exceptions.ConnectionError:
-    #     st.error("Cannot reach server")
-    
+
     for c in all_cids:
         col1, col2 = st.columns([4, 1])
         with col1:
@@ -144,9 +147,9 @@ with st.sidebar:
             ):
                 st.session_state.conversation_id = c
                 try:
-                    h = st.session_state.http.get(f"http://localhost:8000/get/{c}")
+                    h = st.session_state.http.get(f"{BACKEND_URL}/get/{c}", timeout=5)
                     st.session_state.messages = h.json() if h.status_code == 200 else []
-                except requests.exceptions.ConnectionError:
+                except Exception:
                     st.session_state.messages = []
                 st.rerun()
             
@@ -156,86 +159,10 @@ with st.sidebar:
         
 
 for msg in st.session_state.messages:## prints msgs from oldest to newest
+    if msg["role"] == "system":
+        continue  # file-content notes aren't meant to be shown as chat bubbles
     st.markdown(render_bubble(msg["role"], msg["content"]), unsafe_allow_html=True)
 
-# with st.container(key="input_row"):
-#     col1, col2 = st.columns([5, 1])
-#     with col1:
-#         typed_prompt = st.chat_input("Type your message !!!")
-#     with col2:
-#         audio_value = st.audio_input("🎤", label_visibility="collapsed",key="mic_input")
 
-
-typed_prompt = st.chat_input("Type your message !!!")
-audio_value = st.audio_input("🎤", label_visibility="collapsed",key="mic_input")
-
-prompt = None  # always initialize before the if-chain that uses it
-
-if typed_prompt:
-    prompt = typed_prompt
-elif audio_value:
-    # guard against re-transcribing the same blob on unrelated reruns
-    if audio_value.file_id != st.session_state.get("last_audio_id"):
-        st.session_state.last_audio_id = audio_value.file_id
-        files = {"audio": ("recording.wav", audio_value.getvalue(), "audio/wav")}
-        transcribe_response = st.session_state.http.post(
-            "http://localhost:8000/STT", files=files
-        )
-        if transcribe_response.status_code == 200:
-            prompt = transcribe_response.json()["text"]
-        else:
-            st.error("Transcription failed")
-
-if prompt:
-
-    st.session_state.messages.append({"role": "user", "content": prompt})## add new msg in state 
-    st.markdown(render_bubble("user", prompt), unsafe_allow_html=True)
-
-    message_placeholder = st.empty()
-    
-    full_response = ""
-        
-    try:
-            # Use streaming endpoint
-            response = st.session_state.http.post(
-                "http://localhost:8000/post_stream",
-                json={
-                    "Cid": st.session_state.conversation_id,
-                    "role": "user",
-                    "content": prompt
-                },
-                stream=True ##lets us read as server sends it 
-            )
-            
-            if response.status_code == 200:
-                counter = 0
-                for line in response.iter_lines(chunk_size=1):##send chunks of data SSE format
-                    if line:
-                        line = line.decode('utf-8')
-                        if line.startswith('data: '):
-                            data = line[6:]
-                            if data == '[DONE]':
-                                break
-                            full_response += data
-                            counter += 1
-                            
-                            if counter % 3 ==0:
-                                message_placeholder.markdown(render_bubble("assistant", full_response + "▌"), unsafe_allow_html=True)                
-                message_placeholder.markdown(render_bubble("assistant",full_response),unsafe_allow_html=True)
-                
-                st.session_state.messages.append({"role": "assistant", "content": full_response})
-                
-                tts_response = st.session_state.http.post(
-                    "http://localhost:8000/tts",
-                    json={"text": full_response}
-                )
-                if tts_response.status_code == 200:
-                    st.audio(tts_response.content, format="audio/wav", autoplay=True)  
-            else:
-                st.error(f"Error: {response.status_code}")
-              
-    except requests.exceptions.ConnectionError:
-        st.error(" Cannot connect to server. Make sure FastAPI is running!")
-    except Exception as e:
-        st.error(f" Error: {str(e)}")
-
+# Chat input + file upload (logic lives in chat_input.py)
+render_chat_input(render_bubble)

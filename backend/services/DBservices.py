@@ -2,6 +2,8 @@
 from pymongo import MongoClient
 import os
 from dotenv import load_dotenv
+#from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.memory import InMemorySaver
 load_dotenv()
 
 client = MongoClient(os.getenv("MONGO_LINK"))##making connection
@@ -34,3 +36,11 @@ def delete_convo(cid):
 def get_allconvos():
     results = msgs_collection.distinct("Cid")
     return results
+
+_checkpointer = InMemorySaver()
+
+def get_checkpointer():
+    return _checkpointer
+
+##def get_checkpointer():
+    ##return MongoDBSaver(client, db_name="echatbot", collection_name="checkpoints")

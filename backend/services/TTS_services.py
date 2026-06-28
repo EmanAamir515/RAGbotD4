@@ -20,7 +20,7 @@ def stream_with_tts(text_stream):
     for token in text_stream:
         buffer += token
         if re.search(r'[.!?]\s*$', buffer):
-            yield buffer.strip(), speak(buffer.strip())
+            yield buffer.strip(), audio(buffer.strip())
             buffer = ""
     if buffer.strip():
-        yield buffer.strip(), speak(buffer.strip())
+        yield buffer.strip(), audio(buffer.strip())

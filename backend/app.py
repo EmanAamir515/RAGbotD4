@@ -1,17 +1,24 @@
-from fastapi import FastAPI, UploadFile, File
+from services.gcs_sync import restore_from_gcs
+restore_from_gcs()  # restores FAQ ChromaDB data; must run before embed.py creates its client
+
+import threading
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import StreamingResponse, Response
 from models.free_model import ask_model_tooling
-from data.structure import mem
 from services.DBservices import store_msg, get_convoHistory,get_allconvos, delete_convo
-from fastapi.responses import StreamingResponse,Response
 from contextlib import asynccontextmanager
-from services.embed import build_faq_embeddings, retrieve_relevant_faqs
+from services.embed import build_faq_embeddings
+from services.upload_service import extract_text
 from services.STTvoice_services import STT_function
 from services.TTS_services import audio
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs once when the FastAPI server starts up # Loads cached FAQ embeddings from disk, or builds + caches them# the first time (see embed.py).
-    build_faq_embeddings()
+    # Builds FAQ embeddings in a background thread so the server starts
+    # accepting requests immediately, instead of blocking startup for
+    # however long the (free-tier, often slow) embedding API call takes.
+    threading.Thread(target=build_faq_embeddings, daemon=True).start()
     yield
 
 app = FastAPI(lifespan=lifespan)
@@ -21,39 +28,42 @@ async def get_hist(cid:str):
     return get_convoHistory(cid)
 
 @app.post("/post_stream")
-async def add_msg_stream(data:mem):
-    ## store user msg with role/id after it got reply 
-    store_msg(data.Cid, 'user', data.content)
-    
-    history = get_convoHistory(data.Cid) ##history of chat for context 
-    
-#     relevant_faqs = retrieve_relevant_faqs(data.content)
-#     if relevant_faqs:
-#    ## if found combines LLM + history chat (context) to answer
-#         context_text = "\n\n".join( f"Q: {f['question']}\nA: {f['answer']}" for f in relevant_faqs)
-#         system_msg = {
-#             "role": "system",
-#             "content": (
-#                 "You are NetSol's support assistant. Use the following FAQ "
-#                 "entries to answer the user's question if they are relevant. "
-#                 "If the FAQs don't cover it, answer normally."
-#                 "Do not use markdown tables."
-#                 "Use bullet points instead."
-#                 "write each bullet point in new line.\n\n"
-#                 f"{context_text}"
-#             )
-#         }
-#         history = [system_msg] + history
+async def add_msg_stream(Cid: str = Form(...), content: str = Form(...), file: UploadFile = File(None)):
+    file_bytes = await file.read() if file else None
+
+    ## store user msg with role/id - prepend a small attachment badge if a file was sent
+    stored_content = f"📎 *{file.filename}*\n\n{content}" if file else content
+    store_msg(Cid, 'user', stored_content)
+
+    history = get_convoHistory(Cid) ##history of chat for context 
 
     def event_generator():
+        # If a file came with this message: extract its text and keep it
+        # in-memory for this conversation (like Claude's own file handling -
+        # no disk/vector DB persistence, just held in context up to a
+        # character limit). Saved as a "system" message in MongoDB so it's
+        # part of history for this and future turns in this conversation.
+        nonlocal history
+        if file_bytes:
+            yield f"event: status\ndata: Reading {file.filename}...\n\n"
+
+            file_text = extract_text(file.filename, file_bytes)
+            if file_text:
+                file_note = f"[Uploaded file: {file.filename}]\n\n{file_text}"
+                store_msg(Cid, 'system', file_note)
+                history = history + [{"role": "system", "content": file_note}]
+                yield f"event: status\ndata: Added {file.filename} to conversation context\n\n"
+            else:
+                yield f"event: status\ndata: Could not extract text from {file.filename}\n\n"
+
         full_response = ""
         #print(full_response)
 
-        for chunk in ask_model_tooling(history):## gets all chunks in SSE format
+        for chunk in ask_model_tooling(history, Cid):## gets all chunks in SSE format
             full_response += chunk
             yield f"data: {chunk}\n\n"
         
-        store_msg(data.Cid, 'assistant', full_response)##saving full response at end
+        store_msg(Cid, 'assistant', full_response)##saving full response at end
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -67,14 +77,12 @@ async def list_allChats():
     return get_allconvos()
 
 @app.post("/STT")
-async def get_audio(audio: UploadFile = File(...)):
-    aBytes = await audio.read()
-    text = STT_function(aBytes)
+async def get_audio(audio_file: UploadFile = File(...)):
+    audio_bytes = await audio_file.read()
+    text = STT_function(audio_bytes)
     return {"text": text}
 
 @app.post("/tts")
-async def text_to_Speech(data: dict):
+async def text_to_speech(data: dict):
     audio_bytes = audio(data["text"])
     return Response(content=audio_bytes, media_type="audio/wav")
-
-
