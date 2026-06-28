@@ -1,3 +1,5 @@
+import threading
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, Response
 from agent import llm_response, get_session_history
@@ -6,7 +8,20 @@ from upload_service import extract_text
 from STTvoice_services import STT_function
 from auth.routes import router as auth_router
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Pre-builds the FAQ vector store in a background thread so the
+    # server starts accepting requests (and passes Cloud Run's startup
+    # health check) immediately, instead of blocking on the embedding
+    # API calls. The first /chat request that needs search_faq will
+    # simply wait for _get_vector_store() if this hasn't finished yet.
+    from embedding import _get_vector_store
+    threading.Thread(target=_get_vector_store, daemon=True).start()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(auth_router, prefix="/auth")
 
 
