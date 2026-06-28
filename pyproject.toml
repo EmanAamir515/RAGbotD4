@@ -1,37 +1,39 @@
 [project]
-name = "ragbotd4"
+name = "netsol-chatbot-rag"
 version = "0.1.0"
 description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
+    "bs4>=0.0.2",
     "certifi>=2026.6.17",
     "chromadb>=1.5.9",
     "fastapi>=0.137.2",
+    "langchain>=1.3.10",
+    "langchain-anthropic>=1.4.6",
+    "langchain-chroma>=1.1.0",
+    "langchain-mongodb>=0.11.0",
+    "langchain-openai>=1.3.2",
+    "langchain-openrouter>=0.2.4",
+    "langchain-text-splitters>=1.1.2",
+    "langgraph-checkpoint-mongodb>=0.4.0",
     "pandas>=3.0.3",
-    "pymongo>=4.17.0",
+    "pymongo<4.17",
     "python-dotenv>=1.2.2",
     "requests>=2.34.2",
     "sentence-transformers>=5.6.0",
     "streamlit>=1.58.0",
+    "trafilatura>=2.1.0",
     "uvicorn>=0.49.0",
-    "fastapi",
-    "pymongo",
-    "streamlit",
-    "requests",
-    "pandas",
-    "numpy",
-    "scikit-learn",   # for cosine_similarity
-    "python-dotenv",
-    "chromadb",
-    "markdown>=3.10.2",
-    "langchain-openrouter>=0.2.4",
-    "langchain-openai>=1.3.3",
-    "websockets>=14",
+    "python-multipart>=0.0.20",
     "pymupdf>=1.24.0",
     "python-docx>=1.1.0",
     "python-pptx>=1.0.0",
-    "langchain-text-splitters>=0.3.0",
-    "langchain>=1.3.11",
-    "google-cloud-storage>=3.12.0",
+    "insightface>=0.7.3",
+    "opencv-python-headless>=4.10.0",
+    "bcrypt>=4.2.0",
+    "onnxruntime>=1.19.0",
+    "deepgram-sdk>=3.0.0",
+    "kokoro>=0.7.0",
+    "soundfile>=0.12.0",
 ]
+
