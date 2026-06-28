@@ -1,6 +1,5 @@
 name: Deploy to Cloud Run
 
-# Runs automatically whenever code is pushed to the "main" branch
 on:
   push:
     branches: [main]
@@ -34,21 +33,18 @@ jobs:
       - name: Build and push backend image
         run: |
           docker build -f Dockerfile.backend \
-            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }} .
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }}
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-backend:${{ github.sha }} .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-backend:${{ github.sha }}
 
       - name: Deploy backend to Cloud Run
         run: |
-          gcloud run deploy ragbot-backend \
-            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/backend:${{ github.sha }} \
+          gcloud run deploy netsol-chatbot-backend \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-backend:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --memory 2Gi \
+            --memory 4Gi \
             --timeout 300 \
-            --execution-environment gen2 \
-            --add-volume name=chroma-vol,type=cloud-storage,bucket=ragbot-chromadb-pivotal-mile \
-            --add-volume-mount volume=chroma-vol,mount-path=/app/backend/chroma_db \
-            --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_LINK=${{ secrets.MONGO_LINK }}
+            --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_URI=${{ secrets.MONGO_URI }},MODEL=${{ secrets.MODEL }},EMBEDDING_MODEL=${{ secrets.EMBEDDING_MODEL }},EMBEDDINGS_URL=${{ secrets.EMBEDDINGS_URL }},DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }},CHROMA_GCS_BUCKET=ragbot-chromadb-pivotal-mile
 
   deploy-frontend:
     runs-on: ubuntu-latest
@@ -70,20 +66,20 @@ jobs:
       - name: Get backend URL
         id: backend_url
         run: |
-          URL=$(gcloud run services describe ragbot-backend --region ${{ env.REGION }} --format='value(status.url)')
+          URL=$(gcloud run services describe netsol-chatbot-backend --region ${{ env.REGION }} --format='value(status.url)')
           echo "url=$URL" >> "$GITHUB_OUTPUT"
 
       - name: Build and push frontend image
         run: |
           docker build -f Dockerfile.frontend \
-            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }} .
-          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }}
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} .
+          docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }}
 
       - name: Deploy frontend to Cloud Run
         run: |
-          gcloud run deploy ragbot-frontend \
-            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/frontend:${{ github.sha }} \
+          gcloud run deploy netsol-chatbot-frontend \
+            --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --memory 1Gi \
+            --memory 2Gi \
             --set-env-vars BACKEND_URL=${{ steps.backend_url.outputs.url }}

@@ -4,8 +4,11 @@ from langchain.embeddings import init_embeddings
 from langchain_chroma import Chroma
 from read_data import load_and_chunk_faq
 from langchain_core.tools import tool
+from gcs_sync import restore_from_gcs, backup_to_gcs
 
 load_dotenv()
+
+restore_from_gcs()  # must run before Chroma(...) below creates its client
 
 embeddings = init_embeddings(
     os.getenv('EMBEDDING_MODEL'),
@@ -26,6 +29,7 @@ if len(existing["ids"]) == 0:
     chunks = load_and_chunk_faq()
     vector_store.add_texts(chunks)
     print(f"Embedded {len(chunks)} chunks into Chroma.")
+    backup_to_gcs()
 else:
     print(f"Loaded existing collection with {len(existing['ids'])} chunks.")
 

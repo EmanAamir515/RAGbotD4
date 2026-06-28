@@ -1,10 +1,14 @@
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# system deps needed by some python packages (e.g. pymupdf, chromadb)
+# System deps:
+# - build-essential: some Python packages compile native extensions
+# - libgl1, libglib2.0-0: required by opencv-python-headless (face auth)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    libgl1 \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
@@ -17,4 +21,4 @@ WORKDIR /app/backend
 EXPOSE 8080
 
 # Cloud Run sets the PORT env var; default to 8080 for local docker run
-CMD ["sh", "-c", "uv run uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["sh", "-c", "uv run uvicorn endpoint:app --host 0.0.0.0 --port ${PORT:-8080}"]
