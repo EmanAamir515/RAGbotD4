@@ -16,14 +16,14 @@ if not st.session_state.get("authenticated"):
 
 user_email = st.session_state.get("user_email", "guest_user")
 
-st.title("🤖 NetSol Chatbot")
+st.title("NetSol Chatbot")
 
 st.markdown("""
 <style>
 :root {
-    --netsol-blue: #2563EB;
-    --netsol-blue-dark: #1D4ED8;
-    --netsol-blue-light: #EFF6FF;
+    --netsol-purple: #A855F7 ;
+    --netsol-purple-dark: #B24BF3 ;
+    --netsol-purple-light: #EECFFE;
     --netsol-text: #1E293B;
     --netsol-border: #E2E8F0;
 }
@@ -42,16 +42,14 @@ st.markdown("""
     padding-bottom: 7rem;
 }
 
-/* Sidebar: light blue tint to separate it from the white main area */
 section[data-testid="stSidebar"] {
-    background-color: var(--netsol-blue-light);
+    background-color: var(--netsol-purple-light);
     border-right: 1px solid var(--netsol-border);
 }
 
-/* Chat bubbles: NetSol blue for the user's messages, soft white/gray for
-   the assistant's - mirrors the logo's blue-on-white identity. */
+
 div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) {
-    background-color: var(--netsol-blue);
+    background-color: var(--netsol-purple);
     border-radius: 16px;
 }
 div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarUser"]) p,
@@ -64,21 +62,20 @@ div[data-testid="stChatMessage"]:has(div[data-testid="stChatMessageAvatarAssista
     border-radius: 16px;
 }
 
-/* Buttons: filled NetSol blue, rounded */
 .stButton > button {
-    background-color: var(--netsol-blue);
+    background-color: var(--netsol-purple);
     color: #FFFFFF;
     border: none;
     border-radius: 10px;
 }
 .stButton > button:hover {
-    background-color: var(--netsol-blue-dark);
+    background-color: var(--netsol-purple-dark);
     color: #FFFFFF;
 }
 .stButton > button[kind="secondary"] {
     background-color: #FFFFFF;
-    color: var(--netsol-blue);
-    border: 1px solid var(--netsol-blue);
+    color: var(--netsol-purple);
+    border: 1px solid var(--netsol-purple);
 }
 
 /* The chat input is already fixed to the bottom of the viewport by
@@ -92,11 +89,6 @@ div[data-testid="stChatInput"] {
     background-color: #FFFFFF;
 }
 
-/* Audio input rendered as a small circular mic button in NetSol blue,
-   absolutely positioned over the right side of the chat input pill
-   (rather than in its own column, which would break the chat input's
-   sticky-bottom behavior). Fixed to the viewport so it stays glued to
-   the input bar regardless of how far the chat is scrolled. */
 div[data-testid="stAudioInput"] {
     position: fixed;
     bottom: 40px;
@@ -105,11 +97,11 @@ div[data-testid="stAudioInput"] {
     z-index: 1000;
     border-radius: 50%;
     overflow: hidden;
-    border: 1px solid var(--netsol-blue);
+    border: 1px solid var(--netsol-purple);
 }
 div[data-testid="stAudioInput"] > div {
     border-radius: 50%;
-    background-color: var(--netsol-blue-light);
+    background-color: var(--netsol-purple-light);
 }
 
 /* Keep long error/warning text from overflowing its box - this is what
@@ -118,6 +110,25 @@ div[data-testid="stAlert"] {
     overflow-wrap: break-word;
     word-break: break-word;
     white-space: normal;
+}
+
+.chat-row { display: flex; margin: 8px 0; }
+.chat-row.user { justify-content: flex-end; }
+.chat-row.assistant { justify-content: flex-start; }
+.chat-bubble {
+    max-width: 75%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    word-wrap: break-word;
+}
+.chat-bubble.user {
+    background-color: #A855F7;
+    color: #FFFFFF !important;
+}
+.chat-bubble.assistant {
+    background-color: #F8FAFC;
+    border: 1px solid var(--netsol-border);
+    color: var(--netsol-text);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -231,9 +242,15 @@ with st.sidebar:
         st.switch_page("login_app.py")
 
 # --- Render past messages ---
+def render_bubble(role, content):
+    safe = content.replace("\n", "<br>")
+    st.markdown(
+        f'<div class="chat-row {role}"><div class="chat-bubble {role}">{safe}</div></div>',
+        unsafe_allow_html=True,
+    )
+
 for msg in st.session_state.display_messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+    render_bubble(msg["role"], msg["content"])
 
 # --- Chat input: pinned to the bottom of the viewport (Streamlit's
 # native behavior for st.chat_input, which only works when it's rendered
@@ -279,10 +296,9 @@ if user_input:
     # as typed messages, no waveform/audio player in the chat history
     display_text = f"📎 *{upload_file.name}*\n\n{user_input}" if upload_file else user_input
     st.session_state.display_messages.append({"role": "user", "content": display_text})
-    with st.chat_message("user"):
-        st.write(display_text)
+    render_bubble("user", display_text)
 
-    with st.chat_message("assistant"):
+    with st.container():
         form_data = {
             "message": user_input,
             "session_id": st.session_state.session_id,
@@ -338,10 +354,16 @@ if user_input:
                     if not full_reply:
                         status_placeholder.empty()  # clear the loader on first real token
                     full_reply += data
-                    message_placeholder.markdown(full_reply + "▌")
+                    message_placeholder.markdown(
+                        f'<div class="chat-row assistant"><div class="chat-bubble assistant">{full_reply}▌</div></div>',
+                        unsafe_allow_html=True,
+                    )
 
             status_placeholder.empty()
-            message_placeholder.markdown(full_reply)
+            message_placeholder.markdown(
+                f'<div class="chat-row assistant"><div class="chat-bubble assistant">{full_reply}</div></div>',
+                unsafe_allow_html=True,
+            )
 
         except requests.exceptions.ConnectionError:
             st.error("Cannot connect to server. Make sure the backend is running.")
