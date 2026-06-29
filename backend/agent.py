@@ -4,7 +4,7 @@ import uuid
 import base64
 from langchain.agents import create_agent
 from dotenv import load_dotenv
-from embedding import search_faq
+from embeddings.embedding import search_faq
 from langchain_openrouter import ChatOpenRouter
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langchain_core.messages import AIMessageChunk
@@ -164,17 +164,8 @@ def llm_response(message, session_id, file_text=None, want_voice_reply=False):
 
 
 def _emit_audio_event(sentence_text):
-    """Synthesizes one sentence's audio and yields it as a base64-encoded
-    SSE 'audio' event. TTS failures here are non-fatal - text streaming
-    must never break because voice synthesis hiccuped on one sentence.
-
-    The import is deliberately local (not at module level): kokoro/torch
-    can be a slow/heavy import, and importing it at module level would
-    block this whole module (and therefore the FastAPI app) from loading
-    until that import finishes - same crash-on-import risk we already
-    fixed once for TTS_services.py itself."""
     try:
-        from TTS_services import audio as tts_audio
+        from servicesFiles.TTS_services import audio as tts_audio
         audio_bytes = tts_audio(sentence_text)
         b64 = base64.b64encode(audio_bytes).decode("ascii")
         yield f"event: audio\ndata: {b64}\n\n"

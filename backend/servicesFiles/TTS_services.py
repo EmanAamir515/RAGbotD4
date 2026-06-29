@@ -14,7 +14,6 @@ def _get_pipeline():
 
 
 def audio(text, voice="af_heart"):
-    """Convert one sentence of text into WAV audio bytes"""
     pipeline = _get_pipeline()
     audio_parts = [piece for _, _, piece in pipeline(text, voice=voice)]
     if not audio_parts:

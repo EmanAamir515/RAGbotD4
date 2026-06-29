@@ -20,11 +20,6 @@ TOKEN_TTL = timedelta(days=7)
 PERSONALITY = "You are a friendly assistant for NetSol Technologies. Answer clearly and concisely. Do not use markdown formatting like bold or asterisks or inverted commas."
 
 def delete_session(session_id):
-    """Removes everything tied to this session: the sidebar entry, any
-    legacy chat_history rows, and the LangGraph checkpoint data (this is
-    where the actual conversation messages/context live - thread_id ==
-    session_id), so deleting a chat genuinely clears its memory rather
-    than just hiding it from the sidebar."""
     user_sessions.delete_many({"session_id": session_id})
     collection.delete_many({"session_id": session_id})
     checkpoints.delete_many({"thread_id": session_id})

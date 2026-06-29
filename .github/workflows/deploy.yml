@@ -42,7 +42,7 @@ jobs:
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-backend:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --memory 4Gi \
+            --memory 8Gi \
             --cpu 4 \
             --cpu-boost \
             --timeout 600 \

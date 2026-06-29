@@ -4,8 +4,8 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, Response
 from agent import llm_response, get_session_history
 from services import delete_session, register_session, get_user_sessions
-from upload_service import extract_text
-from STTvoice_services import STT_function
+from servicesFiles.upload_service import extract_text
+from servicesFiles.STTvoice_services import STT_function
 from auth.routes import router as auth_router
 
 
@@ -16,17 +16,17 @@ async def lifespan(app: FastAPI):
     # health check) immediately, instead of blocking on the embedding
     # API calls. The first /chat request that needs search_faq will
     # simply wait for _get_vector_store() if this hasn't finished yet.
-    from embedding import _get_vector_store
+    from embeddings.embedding import _get_vector_store
     threading.Thread(target=_get_vector_store, daemon=True).start()
     
     def _warm_tts():
         try:
-            from TTS_services import _get_pipeline
+            from servicesFiles.TTS_services import _get_pipeline
             _get_pipeline()  
         except Exception as e:
             print(f"TTS warmup failed: {e}")
     threading.Thread(target=_warm_tts, daemon=True).start()
-    
+
     yield
 
 
@@ -86,13 +86,13 @@ async def speech_to_text(audio_file: UploadFile = File(...)):
     return {"text": text}
 
 
-@app.post('/tts')
+@app.post('/tts')##not using for now trying line by line 
 async def text_to_speech(data: dict):
     text = data.get("text", "")
     if not text.strip():
         raise HTTPException(status_code=400, detail="No text provided to synthesize")
     try:
-        from TTS_services import audio as tts_audio
+        from servicesFiles.TTS_services import audio as tts_audio
         audio_bytes = tts_audio(text)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"TTS generation failed: {e}")
