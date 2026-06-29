@@ -1,5 +1,4 @@
 import os
-import re
 import uuid
 import base64
 from langchain.agents import create_agent
@@ -109,10 +108,7 @@ def get_session_history(session_id):
 
 def _get_model_response(agent, messages, session_id, langfuse_handler, want_voice_reply):
   
-    # sentence_buffer = ""
     got_content = False
-
-  
     config = {
         "configurable": {"thread_id": session_id},
         "callbacks": [h for h in [langfuse_handler] if h],
@@ -134,13 +130,7 @@ def _get_model_response(agent, messages, session_id, langfuse_handler, want_voic
             yield f"event: message\ndata: {safe_content}\n\n"
             if want_voice_reply:
                 full_text+=chunk.content
-                # # sentence_buffer += chunk.content
-                # # if re.search(r'[.!?]\s*$', sentence_buffer):
-                # #     yield from _emit_audio_event(sentence_buffer.strip())
-                # #     sentence_buffer = ""
-
-    # if want_voice_reply and sentence_buffer.strip():
-    #     yield from _emit_audio_event(sentence_buffer.strip())
+                
     if want_voice_reply and full_text.strip():
         yield from _emit_audio_event(full_text.strip())
 

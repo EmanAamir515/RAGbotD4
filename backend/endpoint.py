@@ -1,6 +1,6 @@
 import threading
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Response
 from fastapi.responses import StreamingResponse, Response
 from agent import llm_response, get_session_history
 from services import delete_session, register_session, get_user_sessions
@@ -13,13 +13,6 @@ from auth.routes import router as auth_router
 async def lifespan(app: FastAPI):
     from embeddings.embedding import _get_vector_store
     threading.Thread(target=_get_vector_store, daemon=True).start()
-    # def _warm_tts():
-    #     try:
-    #         from servicesFiles.TTS_services import _get_pipeline
-    #         _get_pipeline()  
-    #     except Exception as e:
-    #         print(f"TTS warmup failed: {e}")
-    # threading.Thread(target=_warm_tts, daemon=True).start()
     yield
 
 
@@ -43,14 +36,12 @@ async def chat(
     file_bytes = await file.read() if file else None
     filename = file.filename if file else None
 
-    # record this session under the user (first message becomes the title,
-    # truncated) so the sidebar can list it - no-ops on later messages
     register_session(user_email, session_id, title=message[:40])
 
     def event_stream():
         file_text = None
         if file_bytes:
-            yield f"event: status\ndata: Reading {filename}...\n\n"
+            yield f"event: status\ndata: Reading {filename}\n\n"
             file_text = extract_text(filename, file_bytes)
             if file_text:
                 yield f"event: status\ndata: Added {filename} to conversation context\n\n"

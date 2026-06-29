@@ -16,7 +16,7 @@ st.markdown("""
     color: #1E293B;
 }
 .stButton > button {
-    background-color: #2563EB;
+    background-color: #A855F7;
     color: #FFFFFF;
     border: none;
     border-radius: 10px;
@@ -62,11 +62,11 @@ if not st.session_state.authenticated and "token" in st.query_params:
     except requests.exceptions.RequestException:
         pass  # backend unreachable - fall through to showing the login form
 
-st.title("🤖 NetSol Chatbot")
+st.title(" NetSol Chatbot")
 
-menu = st.radio("Authnetication Methods:", [" Register", "🔓 Login"], horizontal=True, label_visibility="collapsed")
+menu = st.radio("Authnetication Methods:", [" Register", "Login"], horizontal=True, label_visibility="collapsed")
 
-if menu == "📝 Register":
+if menu == " Register":
     st.subheader("Create Account")
     email = st.text_input("Email")
     password = st.text_input("Password", type="password")
@@ -85,12 +85,12 @@ if menu == "📝 Register":
                         timeout=120,  # first call may need to download the face model
                     )
                     if r.status_code == 200:
-                        st.success("✅ Account created! Switching to login...")
+                        st.success(" Account created! Switching to login...")
                         time.sleep(1)
                         st.session_state.authenticated = False
                         st.rerun()
                     else:
-                        st.error(f"❌ {r.json().get('detail', 'Failed')}")
+                        st.error(f" {r.json().get('detail', 'Failed')}")
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
@@ -119,7 +119,7 @@ else:
                             st.session_state.user_email = data.get("user")
                             st.session_state.auth_token = data.get("token")
                             st.query_params["token"] = data.get("token")
-                            st.success(f"✅ Welcome {email}!")
+                            st.success(f"Welcome {email}!")
                             time.sleep(1)
                             st.switch_page("pages/app.py")
                         else:

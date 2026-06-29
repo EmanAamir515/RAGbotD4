@@ -28,9 +28,6 @@ def delete_session(session_id):
 
 
 def register_session(user_email, session_id, title=None):
-    """Records that this session belongs to this user, the first time a
-    message is sent in it. Upserts the title only if not already set, so
-    re-sending messages in the same session doesn't keep overwriting it."""
     existing = user_sessions.find_one({"user_email": user_email, "session_id": session_id})
     if existing:
         return
@@ -48,10 +45,6 @@ def get_user_sessions(user_email):
 
 
 def create_auth_token(user_email):
-    """Issues a random, unguessable token for this user and stores the
-    mapping server-side. The frontend keeps only this token (e.g. in the
-    URL) - never the email directly - so a leaked/shared URL doesn't hand
-    over the account the way storing the raw email would."""
     token = secrets.token_urlsafe(32)
     auth_tokens.insert_one({
         "token": token,
@@ -62,7 +55,6 @@ def create_auth_token(user_email):
 
 
 def resolve_auth_token(token):
-    """Returns the user_email for a valid, non-expired token, or None."""
     doc = auth_tokens.find_one({"token": token})
     if not doc:
         return None
@@ -76,5 +68,4 @@ def resolve_auth_token(token):
 
 
 def revoke_auth_token(token):
-    """Invalidates a token immediately (used on logout)."""
     auth_tokens.delete_one({"token": token})

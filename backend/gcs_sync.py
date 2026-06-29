@@ -48,9 +48,6 @@ def restore_from_gcs():
 
 
 def _changed_files():
-    """Walks the local ChromaDB folder and returns only files that are
-    new or modified since the last successful sync (checked via mtime),
-    so we never re-upload unchanged data."""
     changed = []
     for root, _dirs, files in os.walk(LOCAL_PATH):
         for fname in files:
