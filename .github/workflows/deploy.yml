@@ -46,7 +46,7 @@ jobs:
             --cpu 4 \
             --cpu-boost \
             --timeout 600 \
-            --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_URI=${{ secrets.MONGO_URI }},MODEL=${{ secrets.MODEL }},EMBEDDING_MODEL=${{ secrets.EMBEDDING_MODEL }},EMBEDDINGS_URL=${{ secrets.EMBEDDINGS_URL }},DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }},CHROMA_GCS_BUCKET=ragbot-chromadb-pivotal-mile
+            --set-env-vars OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }},MONGO_URI=${{ secrets.MONGO_URI }},MODEL=${{ secrets.MODEL }},EMBEDDING_MODEL=${{ secrets.EMBEDDING_MODEL }},EMBEDDINGS_URL=${{ secrets.EMBEDDINGS_URL }},DEEPGRAM_API_KEY=${{ secrets.DEEPGRAM_API_KEY }},CHROMA_GCS_BUCKET=ragbot-chromadb-pivotal-mile,LANGFUSE_PUBLIC_KEY=${{ secrets.LANGFUSE_PUBLIC_KEY }},LANGFUSE_SECRET_KEY=${{ secrets.LANGFUSE_SECRET_KEY }},LANGFUSE_HOST=https://cloud.langfuse.com
 
   deploy-frontend:
     runs-on: ubuntu-latest
