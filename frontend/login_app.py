@@ -64,7 +64,7 @@ if not st.session_state.authenticated and "token" in st.query_params:
 
 st.title("🤖 NetSol Chatbot")
 
-menu = st.radio("", ["📝 Register", "🔓 Login"], horizontal=True, label_visibility="collapsed")
+menu = st.radio("Authnetication Methods:", [" Register", "🔓 Login"], horizontal=True, label_visibility="collapsed")
 
 if menu == "📝 Register":
     st.subheader("Create Account")
@@ -94,11 +94,11 @@ if menu == "📝 Register":
             except Exception as e:
                 st.error(f"Error: {e}")
         else:
-            st.warning("⚠️ Fill all fields")
+            st.warning(" Fill all fields")
 
 else:
     st.subheader("Login")
-    login_method = st.radio("", ["👤 Email+Password", "📷 Face Login"], horizontal=True, label_visibility="collapsed")
+    login_method = st.radio("", [" Email+Password", "Face Login"], horizontal=True, label_visibility="collapsed")
 
     if "Email" in login_method:
         email = st.text_input("Email")

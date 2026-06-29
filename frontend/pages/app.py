@@ -92,7 +92,7 @@ div[data-testid="stChatInput"] {
 div[data-testid="stAudioInput"] {
     position: fixed;
     bottom: 40px;
-    right: 90px;
+    right: 200px;
     width: 44px;
     z-index: 1000;
     border-radius: 50%;
