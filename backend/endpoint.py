@@ -18,6 +18,15 @@ async def lifespan(app: FastAPI):
     # simply wait for _get_vector_store() if this hasn't finished yet.
     from embedding import _get_vector_store
     threading.Thread(target=_get_vector_store, daemon=True).start()
+    
+    def _warm_tts():
+        try:
+            from TTS_services import _get_pipeline
+            _get_pipeline()  
+        except Exception as e:
+            print(f"TTS warmup failed: {e}")
+    threading.Thread(target=_warm_tts, daemon=True).start()
+    
     yield
 
 
