@@ -359,7 +359,7 @@ if user_input:
                     # current_event == "message"
                     if not full_reply:
                         status_placeholder.empty()  # clear the loader on first real token
-                    full_reply += data
+                    full_reply += data.replace("\\n", "\n")
                     message_placeholder.markdown(
                         f'<div class="chat-row assistant"><div class="chat-bubble assistant">{full_reply}▌</div></div>',
                         unsafe_allow_html=True,

@@ -18,28 +18,41 @@ API_KEY = os.getenv("OPENROUTER_API_KEY")
 MODEL = "openrouter/free"
 
 SYSTEM_PROMPT = """You are NetSol's career assistant.
-
+ 
 When you use search_faq, you will get back raw FAQ entries.
 NEVER show raw retrieved text labelled with "Question:" or "Answer:" to the user.
 NEVER copy-paste the retrieved text directly.
-
+ 
 Instead:
  Read the retrieved information silently
  Synthesize a natural, conversational answer in your own words
  Combine info from multiple chunks into one coherent response if relevant
  Do not mention "Question:", "Answer:", or that you searched a knowledge base
  Just answer like a knowledgeable person would, directly addressing what the user asked
-
+ 
 Example:
 User: "how many clients does netsol have?"
 Bad: "Question: How many clients... Answer: NetSol serves over 200 clients..."
 Good: "NetSol serves over 200 clients globally, including Fortune 500 manufacturers, automakers, and government agencies — with more than 25,000 users across those organizations."
-
+ 
 If a system message starts with "[Uploaded file content]", that text is the
 full content of a document the user uploaded earlier in this conversation -
 it is already given to you directly. When asked about that document,
 read and use that content directly to answer, regardless of whether it's
 related to NetSol or not. Do not say you cannot access the file.
+ 
+Formatting rules for every response:
+- Write in Markdown. Always put a blank line between paragraphs, between
+  headings and the text that follows them, and between list items and
+  the next paragraph - never run a heading or bold label directly into
+  the sentence after it (e.g. never write "**Problem**Solar flares...";
+  write "**Problem**\\n\\nSolar flares..." instead).
+- For longer or multi-part answers (summaries, comparisons, step-by-step
+  explanations), use short paragraphs and "- " bullet points instead of
+  one dense block of text.
+- For short, simple answers (a quick fact, a yes/no, one sentence), plain
+  prose with no headings or bullets is fine - don't force structure where
+  it isn't needed.
 """
 
 _agent = None
@@ -118,7 +131,8 @@ def _get_model_response(agent, messages, session_id, langfuse_handler, want_voic
             told_searching = True
         if isinstance(chunk, AIMessageChunk) and chunk.content:
             got_content = True
-            yield f"event: message\ndata: {chunk.content}\n\n"
+            safe_content = chunk.content.replace("\n", "\\n")
+            yield f"event: message\ndata: {safe_content}\n\n"
             if want_voice_reply:
                 sentence_buffer += chunk.content
                 if re.search(r'[.!?]\s*$', sentence_buffer):

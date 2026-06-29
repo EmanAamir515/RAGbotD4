@@ -3,7 +3,7 @@ import io
 import fitz 
 import docx
 import pandas as pd
-from pptx import Presentation
+
 
 MAX_CONTEXT_CHARS = 8000  
 
@@ -23,23 +23,12 @@ def from_csv(content):
 def from_txt(content):
     return content.decode("utf-8", errors="ignore")
 
-def from_pptx(content):
-    prs = Presentation(io.BytesIO(content))
-    lines = [
-        shape.text_frame.text
-        for slide in prs.slides
-        for shape in slide.shapes
-        if shape.has_text_frame
-    ]
-    return "\n".join(lines)
-
 
 EXTRACTORS = {
     "pdf": from_pdf,
     "docx": from_docx,
     "csv": from_csv,
     "txt": from_txt,
-    "pptx": from_pptx,
 }
 
 
