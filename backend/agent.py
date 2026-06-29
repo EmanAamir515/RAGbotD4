@@ -43,14 +43,14 @@ related to NetSol or not. Do not say you cannot access the file.
 """
 
 _agent = None
-
+langfuse_handler = None
 
 def get_langfuse_handler():
-    global _langfuse_handler
-    if _langfuse_handler is None and os.getenv("LANGFUSE_PUBLIC_KEY"):
+    global langfuse_handler         
+    if langfuse_handler is None and os.getenv("LANGFUSE_PUBLIC_KEY"):
         from langfuse.langchain import CallbackHandler
-        _langfuse_handler = CallbackHandler()
-    return _langfuse_handler
+        langfuse_handler = CallbackHandler()
+    return langfuse_handler
 
 
 def _get_agent():
@@ -102,8 +102,7 @@ def _get_model_response(agent, messages, session_id, langfuse_handler, want_voic
     sentence_buffer = ""
     got_content = False
 
-    # Pass the Langfuse handler + session id so this call shows up as a
-    # trace in the Langfuse dashboard, grouped by conversation.
+  
     config = {
         "configurable": {"thread_id": session_id},
         "callbacks": [h for h in [langfuse_handler] if h],
