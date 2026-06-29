@@ -16,11 +16,6 @@ client = MongoClient(os.getenv("MONGO_URI"))
 
 API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# "openrouter/free" is OpenRouter's own router - it auto-selects whichever
-# free model is currently available/not rate-limited, instead of pinning
-# to one specific free model ID that might be overloaded at any given
-# moment (this is what was causing "Provider returned error" failures
-# with specific models like gpt-oss-120b and llama-3.3-70b).
 MODEL = "openrouter/free"
 
 SYSTEM_PROMPT = """You are NetSol's career assistant.
@@ -48,12 +43,18 @@ read and use that content directly to answer, regardless of whether it's
 related to NetSol or not. Do not say you cannot access the file.
 """
 
-# The checkpointer (and the agent that depends on it) are built lazily on
-# first use rather than at import time. MongoDBSaver's constructor talks
-# to MongoDB immediately (it creates indexes), so building it eagerly at
-# import time means the whole API would fail to start up if MongoDB is
-# briefly slow or unreachable when the server boots.
 _agent = None
+
+
+_langfuse_handler = None
+
+
+def _get_langfuse_handler():
+    global _langfuse_handler
+    if _langfuse_handler is None and os.getenv("LANGFUSE_PUBLIC_KEY"):
+        from langfuse.langchain import CallbackHandler
+        _langfuse_handler = CallbackHandler()
+    return _langfuse_handler
 
 
 def _get_agent():
@@ -97,82 +98,69 @@ def get_session_history(session_id):
             history.append({"role": "user", "content": content})
         elif role == "ai":
             history.append({"role": "assistant", "content": content})
-        # system messages (uploaded file content) are intentionally
-        # skipped here - same as the rest of the app, they're context for
-        # the model, not something to show as a chat bubble
+    
     return history
 
 
 def llm_response(message, session_id, file_text=None, want_voice_reply=False):
     messages = []
     if file_text:
-        # Injected as part of this turn's input messages (not a separate
-        # call) so LangGraph's MongoDB checkpointer persists it as part of
-        # this conversation's history automatically - same as how the rest
-        # of the chat history is tracked, no separate storage needed.
+   
         messages.append({
             "role": "system",
             "content": f"[Uploaded file content]\n\n{file_text}",
         })
     messages.append({"role": "user", "content": message})
 
-    config = {"configurable": {"thread_id": session_id}}
-
     yield "event: status\ndata: Thinking...\n\n"
 
     agent = _get_agent()
-    sentence_buffer = ""
-    try:
-        stream = agent.stream({"messages": messages}, config=config, stream_mode="messages")
+    langfuse_handler = _get_langfuse_handler()
 
-        # Surface a status update the moment the agent decides to call
-        # search_faq - this is the extra round-trip that makes responses
-        # feel slow, so showing *why* it's taking a moment helps even
-        # though it doesn't reduce actual latency.
-        told_searching = False
-        got_content = False
-        for chunk, metadata in stream:
-            if not told_searching and metadata.get("langgraph_node") == "tools":
-                yield "event: status\ndata: Searching NetSol FAQs...\n\n"
-                told_searching = True
-            if isinstance(chunk, AIMessageChunk) and chunk.content:
-                got_content = True
-                yield f"event: message\ndata: {chunk.content}\n\n"
+    max_attempts = 2
+    for attempt in range(1, max_attempts + 1):
+        sentence_buffer = ""
+       
+        attempt_config = {
+            "configurable": {"thread_id": session_id},
+            "callbacks": [h for h in [langfuse_handler] if h],
+            "metadata": {"langfuse_session_id": session_id},
+        }
+        try:
+            stream = agent.stream({"messages": messages}, config=attempt_config, stream_mode="messages")
+            told_searching = False
+            got_content = False
+            for chunk, metadata in stream:
+                if not told_searching and metadata.get("langgraph_node") == "tools":
+                    yield "event: status\ndata: Searching NetSol FAQs...\n\n"
+                    told_searching = True
+                if isinstance(chunk, AIMessageChunk) and chunk.content:
+                    got_content = True
+                    yield f"event: message\ndata: {chunk.content}\n\n"
+                    if want_voice_reply:
+                        sentence_buffer += chunk.content
+                        if re.search(r'[.!?]\s*$', sentence_buffer):
+                            yield from _emit_audio_event(sentence_buffer.strip())
+                            sentence_buffer = ""
 
-                # Only synthesize voice when the user actually spoke their
-                # message - a typed message gets a typed (text-only) reply.
-                # As soon as a full sentence has accumulated, its audio is
-                # sent right away so the voice can start speaking the first
-                # sentence while later sentences are still streaming in.
-                if want_voice_reply:
-                    sentence_buffer += chunk.content
-                    if re.search(r'[.!?]\s*$', sentence_buffer):
-                        yield from _emit_audio_event(sentence_buffer.strip())
-                        sentence_buffer = ""
+            if want_voice_reply and sentence_buffer.strip():
+                yield from _emit_audio_event(sentence_buffer.strip())
 
-        if want_voice_reply and sentence_buffer.strip():
-            yield from _emit_audio_event(sentence_buffer.strip())
+            if got_content:
+                break  # success - no need to retry
 
-        if not got_content:
-            yield "event: message\ndata: Sorry, I'm having trouble reaching the AI provider right now. Please try again in a moment.\n\n"
+            print(f"Model '{MODEL}' returned an empty response (attempt {attempt}/{max_attempts})")
 
-    except Exception as e:
-        print(f"Model '{MODEL}' failed: {e}")
-        yield "event: message\ndata: Sorry, I'm having trouble reaching the AI provider right now. Please try again in a moment.\n\n"
+        except Exception as e:
+            print(f"Model '{MODEL}' failed (attempt {attempt}/{max_attempts}): {e}")
+            if attempt == max_attempts:
+                yield "event: message\ndata: Sorry, I'm having trouble reaching the AI provider right now. Please try again in a moment.\n\n"
 
     yield "event: done\ndata: [DONE]\n\n"
 
 
 def _emit_audio_event(sentence_text):
-    """Synthesizes one sentence's audio and yields it as a base64-encoded
-    SSE 'audio' event. TTS failures here are non-fatal - text streaming
-    must never break because voice synthesis hiccuped on one sentence.
-
-    The import is deliberately local (not at module level): kokoro/torch
-    can be a slow/heavy import, and importing it at module level would
-    block this whole module (and therefore the FastAPI app) from loading
-    until that import finishes - same crash-on-import risk we already
-    fixed once for TTS_services.py itself."""
+  
     try:
         from TTS_services import audio as tts_audio
         audio_bytes = tts_audio(sentence_text)
