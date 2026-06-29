@@ -34,7 +34,6 @@ def get_embedding_from_array(img):
     return faces[0].embedding
 
 
-# compare two faces
-def compare_faces(emb1, emb2, threshold=0.5):
+def compare_faces(emb1, emb2, threshold=1.24):
     dist = np.linalg.norm(emb1 - emb2)
     return dist < threshold
