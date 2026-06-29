@@ -340,15 +340,12 @@ if user_input:
                         continue
 
                     if current_event == "audio":
-                        # Play this sentence's audio now, alongside the text
-                        # for later sentences still streaming in below -
-                        # this is the "parallel" voice+text behavior.
-                        audio_queue.append(data)
+                        # audio_queue.append(data)
                         audio_html = "".join(
                             f'<audio autoplay style="display:none">'
-                            f'<source src="data:audio/wav;base64,{clip}" type="audio/wav">'
+                            f'<source src="data:audio/wav;base64,{data}" type="audio/wav">'
                             f'</audio>'
-                            for clip in audio_queue
+                            #   for clip in audio_queue
                         )
                         audio_placeholder.markdown(audio_html, unsafe_allow_html=True)
                         continue

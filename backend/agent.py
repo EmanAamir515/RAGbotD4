@@ -108,11 +108,8 @@ def get_session_history(session_id):
 
 
 def _get_model_response(agent, messages, session_id, langfuse_handler, want_voice_reply):
-    """Streams one full attempt at getting a response from the model.
-    Used by llm_response() inside its retry loop - this function does a
-    single attempt, returns whether it got real content, and lets the
-    caller decide whether to retry."""
-    sentence_buffer = ""
+  
+    # sentence_buffer = ""
     got_content = False
 
   
@@ -124,6 +121,8 @@ def _get_model_response(agent, messages, session_id, langfuse_handler, want_voic
 
     stream = agent.stream({"messages": messages}, config=config, stream_mode="messages")
 
+    full_text = ""
+    
     told_searching = False
     for chunk, metadata in stream:
         if not told_searching and metadata.get("langgraph_node") == "tools":
@@ -134,13 +133,16 @@ def _get_model_response(agent, messages, session_id, langfuse_handler, want_voic
             safe_content = chunk.content.replace("\n", "\\n")
             yield f"event: message\ndata: {safe_content}\n\n"
             if want_voice_reply:
-                sentence_buffer += chunk.content
-                if re.search(r'[.!?]\s*$', sentence_buffer):
-                    yield from _emit_audio_event(sentence_buffer.strip())
-                    sentence_buffer = ""
+                full_text+=chunk.content
+                # # sentence_buffer += chunk.content
+                # # if re.search(r'[.!?]\s*$', sentence_buffer):
+                # #     yield from _emit_audio_event(sentence_buffer.strip())
+                # #     sentence_buffer = ""
 
-    if want_voice_reply and sentence_buffer.strip():
-        yield from _emit_audio_event(sentence_buffer.strip())
+    # if want_voice_reply and sentence_buffer.strip():
+    #     yield from _emit_audio_event(sentence_buffer.strip())
+    if want_voice_reply and full_text.strip():
+        yield from _emit_audio_event(full_text.strip())
 
     yield got_content  
 

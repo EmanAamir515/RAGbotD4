@@ -56,7 +56,7 @@ Yeh copy kar lo, GitHub Secret mein chahiye hoga.
 | `GCP_PROJECT_ID` | Part A5 mein jo Project ID copy kiya |
 | `GCP_SA_KEY` | Part A4 wali `.json` file ka **poora content** paste karo (file kholo text editor mein, sab copy karo) |
 | `OPENROUTER_API_KEY` | Backend ki OpenRouter API key |
-| `MONGO_LINK` | MongoDB Atlas connection string |
+| `MONGO_URI` | MongoDB Atlas connection string |
 
 ---
 
