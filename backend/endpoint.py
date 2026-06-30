@@ -1,13 +1,13 @@
 import threading
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse, Response
 from agent import llm_response, get_session_history
 from services import delete_session, register_session, get_user_sessions
 from servicesFiles.upload_service import extract_text
 from servicesFiles.STTvoice_services import STT_function
 from auth.routes import router as auth_router
-
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -17,6 +17,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth_router, prefix="/auth")
 
 
@@ -70,14 +78,14 @@ async def speech_to_text(audio_file: UploadFile = File(...)):
     return {"text": text}
 
 
-# @app.post('/tts')##not using for now trying line by line 
-# async def text_to_speech(data: dict):
-#     text = data.get("text", "")
-#     if not text.strip():
-#         raise HTTPException(status_code=400, detail="No text provided to synthesize")
-#     try:
-#         from servicesFiles.TTS_services import audio as tts_audio
-#         audio_bytes = tts_audio(text)
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"TTS generation failed: {e}")
-#     return Response(content=audio_bytes, media_type="audio/wav")
+@app.post('/tts')##not using for now trying line by line 
+async def text_to_speech(data: dict):
+    text = data.get("text", "")
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="No text provided to synthesize")
+    try:
+        from servicesFiles.TTS_services import audio as tts_audio
+        audio_bytes = tts_audio(text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS generation failed: {e}")
+    return Response(content=audio_bytes, media_type="audio/wav")
