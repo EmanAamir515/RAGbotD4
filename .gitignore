@@ -50,3 +50,9 @@ build/
 # --- Temp files dropped by face registration (auth/routes.py cleans
 # these up itself, but ignore them as a safety net) ---
 temp_*
+
+# Next.js
+frontend-next/node_modules/
+frontend-next/.next/
+node_modules/
+.next/

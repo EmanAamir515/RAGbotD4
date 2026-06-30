@@ -6,7 +6,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write   # required for Workload Identity Federation auth
+  id-token: write
 
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -73,8 +73,10 @@ jobs:
 
       - name: Build and push frontend image
         run: |
-          docker build -f Dockerfile.frontend \
-            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} .
+          docker build \
+            --build-arg NEXT_PUBLIC_API_URL=${{ steps.backend_url.outputs.url }} \
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} \
+            ./frontend-next
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }}
 
       - name: Deploy frontend to Cloud Run
@@ -83,5 +85,4 @@ jobs:
             --image ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} \
             --region ${{ env.REGION }} \
             --allow-unauthenticated \
-            --memory 2Gi \
-            --set-env-vars BACKEND_URL=${{ steps.backend_url.outputs.url }}
+            --memory 1Gi
