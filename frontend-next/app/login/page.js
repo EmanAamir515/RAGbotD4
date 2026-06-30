@@ -8,7 +8,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState("login");        // "login" | "signup"
+  const [loginMethod, setLoginMethod] = useState("email"); // "email" | "face"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -16,29 +17,36 @@ export default function LoginPage() {
 
   // camera
   const [cameraOn, setCameraOn] = useState(false);
-  const [photo, setPhoto] = useState(null); // captured Blob
+  const [photo, setPhoto] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
-
-  // if already logged in, skip to chat
+  const uploadInputRef = useRef(null);
+  // already logged in -> chat
   useEffect(() => {
     if (getToken()) router.replace("/");
   }, [router]);
 
-  // clean up camera when leaving
+  // cleanup camera on unmount
   useEffect(() => {
     return () => stopCamera();
   }, []);
+
+  // attach stream AFTER <video> renders
+  useEffect(() => {
+    if (cameraOn && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [cameraOn]);
 
   async function startCamera() {
     setError("");
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-      if (videoRef.current) videoRef.current.srcObject = stream;
-      setCameraOn(true);
       setPhoto(null);
+      setCameraOn(true);
     } catch (err) {
       setError("Could not access camera.");
     }
@@ -56,19 +64,29 @@ export default function LoginPage() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext("2d").drawImage(video, 0, 0);
-    canvas.toBlob(
-      (blob) => {
-        setPhoto(blob);
-        stopCamera();
-      },
-      "image/jpeg",
-      0.9
-    );
+    canvas.toBlob((blob) => { setPhoto(blob); stopCamera(); }, "image/jpeg", 0.9);
   }
 
-  // ---- EMAIL + PASSWORD LOGIN ----
+  // switch login method, reset camera/photo state
+  function switchMethod(method) {
+    setError("");
+    stopCamera();
+    setPhoto(null);
+    setLoginMethod(method);
+  }
+
+  function switchMode(newMode) {
+    setMode(newMode);
+    setError("");
+    stopCamera();
+    setPhoto(null);
+    setLoginMethod("email");
+  }
+
+  // ---- EMAIL LOGIN ----
   async function emailLogin() {
     setError("");
+    if (!email || !password) return setError("Email and password required.");
     setBusy(true);
     try {
       const form = new FormData();
@@ -91,10 +109,7 @@ export default function LoginPage() {
 
   // ---- FACE LOGIN ----
   async function faceLogin() {
-    if (!photo) {
-      setError("Capture a photo first.");
-      return;
-    }
+    if (!photo) return setError("Capture a photo first.");
     setError("");
     setBusy(true);
     try {
@@ -115,7 +130,7 @@ export default function LoginPage() {
     }
   }
 
-  // ---- SIGNUP (email + password + face) ----
+  // ---- SIGNUP ----
   async function signup() {
     setError("");
     if (!email || !password) return setError("Email and password required.");
@@ -131,11 +146,8 @@ export default function LoginPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.detail || "Registration failed");
       }
-      // registered — now log them in with email+password
-      setMode("login");
-      setError("");
       alert("Registered! You can now log in.");
-      setPhoto(null);
+      switchMode("login");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -143,17 +155,46 @@ export default function LoginPage() {
     }
   }
 
+  // reusable camera block
+  function CameraBlock({ label }) {
+    return (
+      <div className="mb-4">
+        {cameraOn ? (
+          <div className="flex flex-col items-center gap-2">
+            <video ref={videoRef} autoPlay playsInline
+              className="rounded-lg w-full max-h-56 object-cover bg-black" />
+            <button onClick={capturePhoto}
+              className="text-sm rounded-lg px-4 py-2 text-white"
+              style={{ background: "var(--netsol-blue)" }}>
+              📸 Capture
+            </button>
+          </div>
+        ) : photo ? (
+          <div className="flex flex-col items-center gap-2">
+            <img src={URL.createObjectURL(photo)} alt="captured"
+              className="rounded-lg w-full max-h-56 object-cover" />
+            <button onClick={startCamera} className="text-xs text-gray-500 underline">
+              Retake
+            </button>
+          </div>
+        ) : (
+          <button onClick={startCamera}
+            className="w-full rounded-lg border border-dashed border-[var(--netsol-blue)] py-3 text-sm"
+            style={{ color: "var(--netsol-blue)" }}>
+            📷 {label}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#eef5fb] px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
         {/* header */}
         <div className="text-center mb-6">
-          <div
-            className="w-12 h-12 rounded-full mx-auto flex items-center justify-center text-white text-xl font-bold mb-3"
-            style={{ background: "var(--netsol-blue)" }}
-          >
-            AI
-          </div>
+          <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center text-white text-xl font-bold mb-3"
+            style={{ background: "var(--netsol-blue)" }}>AI</div>
           <h1 className="text-xl font-bold" style={{ color: "var(--netsol-blue)" }}>
             NetSol Assistant
           </h1>
@@ -162,113 +203,108 @@ export default function LoginPage() {
           </p>
         </div>
 
-        {/* tab toggle */}
+        {/* mode tabs */}
         <div className="flex mb-6 rounded-lg overflow-hidden border border-[var(--border)]">
-          <button
-            onClick={() => { setMode("login"); setError(""); }}
+          <button onClick={() => switchMode("login")}
             className="flex-1 py-2 text-sm font-medium transition"
             style={mode === "login"
               ? { background: "var(--netsol-blue)", color: "white" }
-              : { color: "var(--netsol-blue)" }}
-          >
-            Login
-          </button>
-          <button
-            onClick={() => { setMode("signup"); setError(""); }}
+              : { color: "var(--netsol-blue)" }}>Login</button>
+          <button onClick={() => switchMode("signup")}
             className="flex-1 py-2 text-sm font-medium transition"
             style={mode === "signup"
               ? { background: "var(--netsol-blue)", color: "white" }
-              : { color: "var(--netsol-blue)" }}
-          >
-            Sign up
-          </button>
+              : { color: "var(--netsol-blue)" }}>Sign up</button>
         </div>
-
-        {/* email + password */}
-        <input
-          className="w-full mb-3 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--netsol-blue)]"
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          className="w-full mb-4 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--netsol-blue)]"
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        {/* camera area */}
-        <div className="mb-4">
-          {cameraOn ? (
-            <div className="flex flex-col items-center gap-2">
-              <video ref={videoRef} autoPlay playsInline className="rounded-lg w-full max-h-56 object-cover bg-black" />
-              <button
-                onClick={capturePhoto}
-                className="text-sm rounded-lg px-4 py-2 text-white"
-                style={{ background: "var(--netsol-blue)" }}
-              >
-                📸 Capture
-              </button>
-            </div>
-          ) : photo ? (
-            <div className="flex flex-col items-center gap-2">
-              <img
-                src={URL.createObjectURL(photo)}
-                alt="captured"
-                className="rounded-lg w-full max-h-56 object-cover"
-              />
-              <button onClick={startCamera} className="text-xs text-gray-500 underline">
-                Retake
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={startCamera}
-              className="w-full rounded-lg border border-dashed border-[var(--netsol-blue)] py-3 text-sm"
-              style={{ color: "var(--netsol-blue)" }}
-            >
-              📷 {mode === "signup" ? "Capture face to register" : "Use Face ID (optional)"}
-            </button>
-          )}
-        </div>
-
-        <canvas ref={canvasRef} style={{ display: "none" }} />
 
         {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
 
-        {/* action buttons */}
+        {/* ---------------- LOGIN ---------------- */}
         {mode === "login" ? (
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={emailLogin}
-              disabled={busy}
-              className="w-full rounded-lg py-2.5 text-sm text-white font-medium disabled:opacity-50"
-              style={{ background: "var(--netsol-blue)" }}
-            >
-              {busy ? "..." : "Login with Email"}
-            </button>
-            <button
-              onClick={faceLogin}
-              disabled={busy || !photo}
-              className="w-full rounded-lg py-2.5 text-sm font-medium border disabled:opacity-40"
-              style={{ color: "var(--netsol-blue)", borderColor: "var(--netsol-blue)" }}
-            >
-              Login with Face ID
-            </button>
-          </div>
+          <>
+            {loginMethod === "email" ? (
+              <>
+                <input className="w-full mb-3 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--netsol-blue)]"
+                  placeholder="Email" type="email" value={email}
+                  onChange={(e) => setEmail(e.target.value)} />
+                <input className="w-full mb-4 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--netsol-blue)]"
+                  placeholder="Password" type="password" value={password}
+                  onChange={(e) => setPassword(e.target.value)} />
+
+                <button onClick={emailLogin} disabled={busy}
+                  className="w-full rounded-lg py-2.5 text-sm text-white font-medium disabled:opacity-50 mb-2"
+                  style={{ background: "var(--netsol-blue)" }}>
+                  {busy ? "..." : "Login"}
+                </button>
+                <button onClick={() => switchMethod("face")}
+                  className="w-full rounded-lg py-2.5 text-sm font-medium border"
+                  style={{ color: "var(--netsol-blue)", borderColor: "var(--netsol-blue)" }}>
+                  Use Face ID
+                </button>
+              </>
+            ) : (
+              <>
+                <CameraBlock label="Capture your face to log in" />
+                <button onClick={faceLogin} disabled={busy || !photo}
+                  className="w-full rounded-lg py-2.5 text-sm text-white font-medium disabled:opacity-40 mb-2"
+                  style={{ background: "var(--netsol-blue)" }}>
+                  {busy ? "..." : "Login"}
+                </button>
+                <button onClick={() => switchMethod("email")}
+                  className="w-full rounded-lg py-2.5 text-sm font-medium border"
+                  style={{ color: "var(--netsol-blue)", borderColor: "var(--netsol-blue)" }}>
+                  Login with Email
+                </button>
+              </>
+            )}
+          </>
         ) : (
-          <button
-            onClick={signup}
-            disabled={busy}
-            className="w-full rounded-lg py-2.5 text-sm text-white font-medium disabled:opacity-50"
-            style={{ background: "var(--netsol-blue)" }}
-          >
-            {busy ? "..." : "Create Account"}
-          </button>
+          /* ---------------- SIGN UP ---------------- */
+          <>
+            <input className="w-full mb-3 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--netsol-blue)]"
+              placeholder="Email" type="email" value={email}
+              onChange={(e) => setEmail(e.target.value)} />
+            <input className="w-full mb-4 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm outline-none focus:border-[var(--netsol-blue)]"
+              placeholder="Password" type="password" value={password}
+              onChange={(e) => setPassword(e.target.value)} />
+            <CameraBlock label="Capture face to register" />
+
+            {/* OR upload a photo (signup only) */}
+            <div className="flex items-center gap-2 mb-4">
+              <div className="flex-1 h-px bg-[var(--border)]" />
+              <span className="text-xs text-gray-400">or</span>
+              <div className="flex-1 h-px bg-[var(--border)]" />
+            </div>
+            <input
+              ref={uploadInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const f = e.target.files[0];
+                if (f) {
+                  stopCamera();
+                  setPhoto(f); // a File is also a Blob — works directly
+                }
+              }}
+            />
+            <button
+              onClick={() => uploadInputRef.current?.click()}
+              className="w-full rounded-lg border border-dashed border-[var(--netsol-blue)] py-3 text-sm mb-4"
+              style={{ color: "var(--netsol-blue)" }}
+            >
+              ⬆️ Upload a photo instead
+            </button>
+
+            <button onClick={signup} disabled={busy}
+              className="w-full rounded-lg py-2.5 text-sm text-white font-medium disabled:opacity-50"
+              style={{ background: "var(--netsol-blue)" }}>
+              {busy ? "..." : "Create Account"}
+            </button>
+          </>
         )}
+
+        <canvas ref={canvasRef} style={{ display: "none" }} />
       </div>
     </div>
   );

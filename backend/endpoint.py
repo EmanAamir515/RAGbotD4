@@ -17,9 +17,14 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://netsol-chatbot-frontend-379158418635.us-central1.run.app/",  # ← paste yours
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
