@@ -73,10 +73,9 @@ jobs:
 
       - name: Build and push frontend image
         run: |
-          docker build \
+          docker build -f Dockerfile.frontend \
             --build-arg NEXT_PUBLIC_API_URL=${{ steps.backend_url.outputs.url }} \
-            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} \
-            ./frontend-next
+            -t ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }} .
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.REPO }}/netsol-chatbot-frontend:${{ github.sha }}
 
       - name: Deploy frontend to Cloud Run

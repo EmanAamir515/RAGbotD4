@@ -32,3 +32,20 @@ html, body {
   font-size: 0.9em;
 }
 .markdown a { color: var(--netsol-blue); text-decoration: underline; }
+
+/* ---- "wind" thinking animation (shown while assistant is replying) ---- */
+.wind-line {
+  height: 3px;
+  width: 28px;
+  border-radius: 9999px;
+  background: var(--netsol-blue);
+  opacity: 0.4;
+  animation: windPulse 1.2s ease-in-out infinite;
+}
+.wind-line:nth-child(2) { width: 20px; animation-delay: 0.2s; }
+.wind-line:nth-child(3) { width: 24px; animation-delay: 0.4s; }
+
+@keyframes windPulse {
+  0%, 100% { opacity: 0.25; transform: translateX(0); }
+  50%      { opacity: 0.8;  transform: translateX(4px); }
+}

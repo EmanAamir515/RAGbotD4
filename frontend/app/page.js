@@ -19,6 +19,17 @@ function CloudIcon() {
   );
 }
 
+// animated wind lines shown while the assistant is thinking
+function WindThinking() {
+  return (
+    <div className="flex flex-col gap-1 justify-center py-1">
+      <div className="wind-line" />
+      <div className="wind-line" />
+      <div className="wind-line" />
+    </div>
+  );
+}
+
 export default function ChatPage() {
   const router = useRouter();
   const [authChecked, setAuthChecked] = useState(false);
@@ -33,8 +44,8 @@ export default function ChatPage() {
   const [playingIndex, setPlayingIndex] = useState(null);
   const [ttsLoading, setTtsLoading] = useState(null);
 
-  // chat history
   const [sessions, setSessions] = useState([]);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const sessionId = useRef(crypto.randomUUID());
   const bottomRef = useRef(null);
@@ -43,8 +54,9 @@ export default function ChatPage() {
   const audioRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordedChunks = useRef([]);
+  const voiceReplyWanted = useRef(false); // true when message came from voice
 
-  // ---- AUTH GUARD: verify token on load ----
+  // ---- AUTH GUARD ----
   useEffect(() => {
     const token = getToken();
     if (!token) {
@@ -71,7 +83,6 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, status]);
 
-  // ---- chat history ----
   async function loadSessions(emailArg) {
     const email = emailArg || userEmail;
     if (!email) return;
@@ -95,6 +106,29 @@ export default function ChatPage() {
       setMessages(data || []);
     } catch (err) {
       console.error("Could not load history", err);
+    }
+  }
+
+  // step 1: clicking the trash icon just opens the themed modal
+  function askDeleteSession(sid, e) {
+    // stop the click from also firing the row's "open this chat" handler
+    e.stopPropagation();
+    setConfirmDeleteId(sid);
+  }
+
+  // step 2: runs only when the user confirms in the modal
+  async function confirmDelete() {
+    const sid = confirmDeleteId;
+    setConfirmDeleteId(null);
+    if (!sid) return;
+    try {
+      await fetch(`${API_URL}/session/${sid}`, { method: "DELETE" });
+      // drop it from the sidebar immediately
+      setSessions((prev) => prev.filter((s) => s.session_id !== sid));
+      // if we deleted the chat we're currently viewing, start a fresh one
+      if (sid === sessionId.current) newChat();
+    } catch (err) {
+      console.error("Could not delete session", err);
     }
   }
 
@@ -190,7 +224,6 @@ export default function ChatPage() {
         buffer = events.pop();
         for (const evt of events) handleEvent(evt);
       }
-      // refresh sidebar after the first message of a new chat
       if (isFirstMessage) loadSessions();
     } catch (err) {
       if (err.name === "AbortError") appendToLastBot(" _(stopped)_");
@@ -199,6 +232,19 @@ export default function ChatPage() {
       setIsStreaming(false);
       setStatus("");
       abortRef.current = null;
+
+      // auto-play reply if the message came from voice
+      if (voiceReplyWanted.current) {
+        voiceReplyWanted.current = false;
+        setMessages((prev) => {
+          const lastIndex = prev.length - 1;
+          const lastMsg = prev[lastIndex];
+          if (lastMsg && lastMsg.role === "assistant" && lastMsg.content) {
+            setTimeout(() => toggleSpeak(lastIndex, lastMsg.content), 100);
+          }
+          return prev;
+        });
+      }
     }
   }
 
@@ -260,12 +306,14 @@ export default function ChatPage() {
       form.append("audio_file", blob, "recording.webm");
       const res = await fetch(`${API_URL}/stt`, { method: "POST", body: form });
       const data = await res.json();
-      if (data.text) setInput((prev) => (prev ? prev + " " : "") + data.text);
+      if (data.text) {
+        setInput((prev) => (prev ? prev + " " : "") + data.text);
+        voiceReplyWanted.current = true; // mark: message came from voice
+      }
     } catch (err) { console.error("STT error:", err); }
     finally { setStatus(""); }
   }
 
-  // while verifying token, show nothing (avoids flicker)
   if (!authChecked) {
     return (
       <div className="h-screen flex items-center justify-center text-gray-400 text-sm">
@@ -280,13 +328,49 @@ export default function ChatPage() {
     <div className="flex h-screen bg-white">
       <audio ref={audioRef} style={{ display: "none" }} />
 
+      {/* DELETE CONFIRMATION MODAL (themed, centered) */}
+      {confirmDeleteId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setConfirmDeleteId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-[90%] max-w-sm p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold text-gray-800 mb-2">Delete chat?</h3>
+            <p className="text-sm text-gray-500 mb-5">
+              This conversation will be permanently deleted. This cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setConfirmDeleteId(null)}
+                className="rounded-lg px-4 py-2 text-sm border border-[var(--border)] hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="rounded-lg px-4 py-2 text-sm text-white font-medium transition hover:opacity-90"
+                style={{ background: "#dc2626" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SIDEBAR */}
       <aside className="w-64 shrink-0 border-r border-[var(--border)] flex flex-col bg-[#eef5fb]">
         <div className="p-4 border-b border-[var(--border)]">
-          <div className="text-lg font-bold" style={{ color: "var(--netsol-blue)" }}>
-            AI Chatbot
+          <div className="flex items-center gap-2">
+            <img src="/netsol-logo.png" alt="NetSol" className="h-7 w-auto shrink-0" />
+            <div className="text-lg font-bold" style={{ color: "var(--netsol-blue)" }}>
+              AI Chatbot
+            </div>
           </div>
-          <div className="text-xs text-gray-500">Powered by NetSol Assistant</div>
+          <div className="text-xs text-gray-500 mt-1">Powered by NetSol Assistant</div>
         </div>
         <div className="p-3">
           <button
@@ -304,20 +388,30 @@ export default function ChatPage() {
             <div className="px-2 text-xs text-gray-400">No saved chats yet</div>
           ) : (
             sessions.map((s) => (
-              <button
+              <div
                 key={s.session_id}
-                onClick={() => openSession(s.session_id)}
-                className={`w-full text-left rounded-lg px-3 py-2 text-sm truncate transition hover:bg-white ${
+                className={`group flex items-center rounded-lg pr-1 transition hover:bg-white ${
                   s.session_id === sessionId.current ? "bg-white font-medium" : ""
                 }`}
               >
-                {s.title || "Untitled chat"}
-              </button>
+                <button
+                  onClick={() => openSession(s.session_id)}
+                  className="flex-1 text-left px-3 py-2 text-sm truncate"
+                >
+                  {s.title || "Untitled chat"}
+                </button>
+                <button
+                  onClick={(e) => askDeleteSession(s.session_id, e)}
+                  title="Delete chat"
+                  className="shrink-0 px-2 py-1 text-xs text-gray-400 opacity-0 group-hover:opacity-100 hover:text-red-600 transition"
+                >
+                  🗑
+                </button>
+              </div>
             ))
           )}
         </div>
 
-        {/* user + logout */}
         <div className="border-t border-[var(--border)] p-3">
           <div className="text-xs text-gray-500 truncate mb-2">{userEmail}</div>
           <button
@@ -334,9 +428,6 @@ export default function ChatPage() {
       <main className="flex flex-1 flex-col">
         <header className="h-14 border-b border-[var(--border)] flex items-center px-6">
           <span className="text-sm font-medium text-gray-700">Assistant</span>
-          {isStreaming && (
-            <span className="ml-3 text-xs text-gray-400">{status || "typing…"}</span>
-          )}
         </header>
 
         <div className="flex-1 overflow-y-auto">
@@ -354,20 +445,22 @@ export default function ChatPage() {
                 <div key={i} className={`flex gap-3 ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                   {m.role === "assistant" && <CloudIcon />}
                   <div className="max-w-[75%]">
-                    <div className="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
-                      style={m.role === "user"
-                        ? { background: "var(--netsol-blue)", color: "white" }
-                        : { background: "var(--bot-bubble)", color: "var(--text)" }}>
-                      {m.role === "assistant" ? (
-                        m.content ? (
+                    {/* if assistant bubble is empty + streaming -> show wind animation */}
+                    {m.role === "assistant" && !m.content ? (
+                      <WindThinking />
+                    ) : (
+                      <div className="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
+                        style={m.role === "user"
+                          ? { background: "var(--netsol-blue)", color: "white" }
+                          : { background: "var(--bot-bubble)", color: "var(--text)" }}>
+                        {m.role === "assistant" ? (
                           <div className="markdown">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                           </div>
-                        ) : (
-                          <span className="text-gray-400">{status || "…"}</span>
-                        )
-                      ) : (m.content)}
-                    </div>
+                        ) : (m.content)}
+                      </div>
+                    )}
+
                     {m.role === "assistant" && m.content && (
                       <div className="flex justify-end mt-1">
                         <button
@@ -376,7 +469,7 @@ export default function ChatPage() {
                           className="text-xs flex items-center gap-1 rounded-full px-2 py-1 hover:bg-gray-100 transition"
                           style={{ color: "var(--netsol-blue)" }}
                         >
-                          {ttsLoading === i ? "⏳" : playingIndex === i ? "⏸ Stop" : "🔊 Listen"}
+                          {ttsLoading === i ? "Loading audio..." : playingIndex === i ? "⏸ Stop" : "🔊 Listen"}
                         </button>
                       </div>
                     )}
@@ -405,7 +498,13 @@ export default function ChatPage() {
               className="rounded-xl px-3 py-3 text-lg border border-[var(--border)] hover:bg-gray-50 disabled:opacity-40">📎</button>
             <input
               className="flex-1 rounded-xl border border-[var(--border)] px-4 py-3 text-sm outline-none focus:border-[var(--netsol-blue)] focus:ring-1 focus:ring-[var(--netsol-blue)]"
-              placeholder={isRecording ? "Listening..." : "Type a message..."}
+              placeholder={
+                isRecording
+                  ? "Listening..."
+                  : status === "Transcribing..."
+                  ? "Transcribing..."
+                  : "Type a message..."
+              }
               value={input} onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown} disabled={isStreaming} />
             <button onClick={toggleRecording} disabled={isStreaming}
